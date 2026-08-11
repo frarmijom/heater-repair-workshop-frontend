@@ -1,26 +1,26 @@
 # Heater Repair Workshop - Frontend (Taller Fuego Sur)
 
-Aplicación web interactiva para la gestión visual e integral de órdenes de trabajo en un taller de reparación de estufas. Permite monitorear el estado actual del taller, filtrar órdenes por su ciclo de vida (Recibido, En Reparación, Completado) y registrar nuevas órdenes con validación reactiva en tiempo real y soporte asíncrono.
+Interactive web application for the visual and comprehensive management of work orders in a heater repair workshop. It allows real-time monitoring of workshop workload metrics, filtering repair orders across their lifecycle (Received, In Repair, Completed), and registering new orders with real-time reactive validation and asynchronous handling.
 
-## Tecnologías
+## Technologies
 
-- **TypeScript Vanilla** (Tipado hermético y seguro, cero `any`)
-- **Vite** (Bundler y entorno de desarrollo en caliente)
-- **Módulos nativos de JavaScript/TypeScript** (ESModules, Async/Await y Fetch API)
+- **Vanilla TypeScript** (Hermetic type safety, strict mode, zero `any`)
+- **Vite** (Next-generation build tool and hot-reloading dev server)
+- **Native Web Standards & ESModules** (HTML5, CSS3, Async/Await, and Fetch API)
 
-## Comandos de Instalación y Ejecución
+## Installation and Execution Commands
 
-- **Para instalar dependencias:**
+- **Install dependencies:**
   ```bash
   npm install
   ```
 
-- **Para ejecutar el servidor de desarrollo en caliente:**
+- **Run hot-reloading development server:**
   ```bash
   npm run dev
   ```
 
-- **Para ejecutar la verificación de tipos de TypeScript y construir el proyecto:**
+- **Run TypeScript type verification and production build:**
   ```bash
   npm run build
   ```
