@@ -15,7 +15,7 @@ export function generateWorkshopMonitorHtml(
     ({ status }) => status === RepairStatus.RECEIVED,
   ).length
   const inRepair = repairOrders.filter(
-    ({ status }) => status === RepairStatus.IN_REPAIR,
+    ({ status }) => status === RepairStatus.IN_PROGRESS,
   ).length
   const completed = repairOrders.filter(
     ({ status }) => status === RepairStatus.COMPLETED,

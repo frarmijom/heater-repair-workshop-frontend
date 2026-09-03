@@ -11,7 +11,7 @@ interface FilterOption {
 export const repairOrderFilterOptions: readonly FilterOption[] = [
   { label: 'All', value: 'all' },
   { label: 'Received', value: RepairStatus.RECEIVED },
-  { label: 'In repair', value: RepairStatus.IN_REPAIR },
+  { label: 'In repair', value: RepairStatus.IN_PROGRESS },
   { label: 'Completed', value: RepairStatus.COMPLETED },
 ]
 

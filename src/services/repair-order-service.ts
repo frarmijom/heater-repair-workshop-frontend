@@ -3,36 +3,41 @@ import type { RepairOrder } from '../models/index.ts'
 import type { RepairOrderFormPayload } from '../components/repair-order-form.ts'
 
 const SIMULATED_DELAY_MS = 700
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api/v1'
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080/api'
 
 const storedRepairOrders: RepairOrder[] = [
   {
-    id: 1,
+    id: 'ORDER-550E8400-E29B-41D4-A716-446655440001',
     customerName: 'Customer A',
-    customerPhone: '+56 9 1111 1111',
+    customerContact: '+56911111111',
     heaterBrand: 'Brand A',
     heaterModel: 'Model 100',
     reportedIssue: 'The heater turns off after a few minutes.',
-    status: RepairStatus.IN_REPAIR,
+    diagnosis: 'Damaged ignition sensor',
+    status: RepairStatus.IN_PROGRESS,
     receivedAt: '2026-07-28T13:30:00.000Z',
+    completedAt: null,
   },
   {
-    id: 2,
+    id: 'ORDER-550E8400-E29B-41D4-A716-446655440002',
     customerName: 'Customer B',
-    customerPhone: '+56 9 2222 2222',
+    customerContact: '+56922222222',
     heaterBrand: 'Brand B',
     heaterModel: 'Model 200',
     reportedIssue: 'The heater does not produce heat.',
+    diagnosis: null,
     status: RepairStatus.RECEIVED,
     receivedAt: '2026-07-31T14:45:00.000Z',
+    completedAt: null,
   },
   {
-    id: 3,
+    id: 'ORDER-550E8400-E29B-41D4-A716-446655440003',
     customerName: 'Customer C',
-    customerPhone: '+56 9 3333 3333',
+    customerContact: '+56933333333',
     heaterBrand: 'Brand C',
     heaterModel: 'Model 300',
     reportedIssue: 'The heater does not turn on.',
+    diagnosis: 'Faulty control board',
     status: RepairStatus.COMPLETED,
     receivedAt: '2026-07-24T12:00:00.000Z',
     completedAt: '2026-07-30T16:20:00.000Z',
@@ -88,11 +93,13 @@ export async function createRepairOrder(
   } catch (error: unknown) {
     // Local simulation fallback when no external server is running
     await simulateNetworkDelay()
-    const nextId = Math.max(0, ...storedRepairOrders.map(({ id }) => id)) + 1
     const repairOrder: RepairOrder = {
-      id: nextId,
+      id: `ORDER-${crypto.randomUUID().toUpperCase()}`,
       ...payload,
+      diagnosis: null,
+      status: RepairStatus.RECEIVED,
       receivedAt: new Date().toISOString(),
+      completedAt: null,
     }
     storedRepairOrders.push(repairOrder)
     return { ...repairOrder }

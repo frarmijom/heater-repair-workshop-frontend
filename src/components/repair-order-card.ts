@@ -3,7 +3,7 @@ import type { RepairOrder } from '../models/index.ts'
 
 const statusLabels: Record<RepairStatus, string> = {
   [RepairStatus.RECEIVED]: 'Received',
-  [RepairStatus.IN_REPAIR]: 'In repair',
+  [RepairStatus.IN_PROGRESS]: 'In repair',
   [RepairStatus.COMPLETED]: 'Completed',
 }
 
@@ -27,7 +27,7 @@ function escapeHtml(value: string): string {
 
 export function generateRepairOrderCardHtml(order: RepairOrder): string {
   const completedDateHtml =
-    order.status === RepairStatus.COMPLETED && order.completedAt !== undefined
+    order.status === RepairStatus.COMPLETED && order.completedAt !== null
       ? `
         <div>
           <dt>Completed</dt>
@@ -47,7 +47,7 @@ export function generateRepairOrderCardHtml(order: RepairOrder): string {
       <h2>${escapeHtml(order.heaterBrand)} ${escapeHtml(order.heaterModel)}</h2>
       <p class="repair-card__customer">
         ${escapeHtml(order.customerName)}
-        <span>${escapeHtml(order.customerPhone)}</span>
+        <span>${escapeHtml(order.customerContact)}</span>
       </p>
       <p class="repair-card__issue">${escapeHtml(order.reportedIssue)}</p>
       <dl class="repair-card__dates">
