@@ -24,3 +24,26 @@ Interactive web application for the visual and comprehensive management of work 
   ```bash
   npm run build
   ```
+
+## Run with Docker
+
+The backend repository contains the shared Docker Compose file. Clone both
+repositories as sibling directories:
+
+```text
+parent-directory/
+|-- heater-repair-workshop/
+`-- heater-repair-workshop-frontend/
+```
+
+Create the backend environment file and start the complete stack:
+
+```bash
+cd heater-repair-workshop
+cp .env.example .env
+docker compose up -d --build
+```
+
+Open <http://localhost>. Nginx serves the production frontend and proxies
+requests under `/api` to the Spring Boot backend within the Docker network.
+Node.js is not required on the host for this workflow.
