@@ -68,3 +68,21 @@ export async function createRepairOrder(
     body: JSON.stringify(payload),
   })
 }
+
+export async function startRepairOrder(
+  id: string,
+  diagnosis: string,
+): Promise<RepairOrder> {
+  return request<RepairOrder>(`/repair-orders/${encodeURIComponent(id)}/start`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ diagnosis }),
+  })
+}
+
+export async function completeRepairOrder(id: string): Promise<RepairOrder> {
+  return request<RepairOrder>(
+    `/repair-orders/${encodeURIComponent(id)}/complete`,
+    { method: 'PATCH' },
+  )
+}
