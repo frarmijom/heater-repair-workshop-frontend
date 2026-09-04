@@ -44,6 +44,6 @@ cp .env.example .env
 docker compose up -d --build
 ```
 
-Open <http://localhost>. Nginx serves the production frontend and proxies
+Open <http://localhost:8081>. Nginx serves the production frontend and proxies
 requests under `/api` to the Spring Boot backend within the Docker network.
 Node.js is not required on the host for this workflow.
