@@ -40,7 +40,7 @@ function showLoadingState(): void {
     <main class="request-state" aria-live="polite" aria-busy="true">
       <span class="request-state__spinner" aria-hidden="true"></span>
       <div>
-        <p>Simulated service</p>
+        <p>Workshop API</p>
         <h1>Loading repair orders…</h1>
       </div>
     </main>
