@@ -47,3 +47,23 @@ docker compose up -d --build
 Open <http://localhost:8081>. Nginx serves the production frontend and proxies
 requests under `/api` to the Spring Boot backend within the Docker network.
 Node.js is not required on the host for this workflow.
+
+## Deploy on Cloudflare Pages
+
+Import this Git repository in Cloudflare Pages and use the following build
+configuration:
+
+```text
+Production branch: hito-6
+Build command: npm run build
+Build output directory: dist
+```
+
+Add this production environment variable before deploying:
+
+```text
+VITE_API_URL=https://YOUR_RENDER_SERVICE.onrender.com/api
+```
+
+After Cloudflare assigns the final `pages.dev` URL, configure that exact URL as
+`CORS_ALLOWED_ORIGINS` in the Render service and redeploy the API.
