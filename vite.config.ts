@@ -11,6 +11,11 @@ export default defineConfig(({ mode }) => {
           target:
             environment.VITE_BACKEND_PROXY_TARGET || 'http://localhost:8080',
           changeOrigin: true,
+          configure(proxy) {
+            proxy.on('proxyReq', (proxyRequest) => {
+              proxyRequest.removeHeader('origin')
+            })
+          },
         },
       },
     },
