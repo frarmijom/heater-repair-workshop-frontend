@@ -56,16 +56,38 @@ configuration:
 ```text
 Production branch: main
 Build command: npm run build
-Build output directory: dist
+Deploy command: npx wrangler@4.129.0 deploy
 ```
 
 Add this production environment variable before deploying:
 
 ```text
-VITE_API_URL=https://YOUR_RENDER_SERVICE.onrender.com/api
+VITE_API_URL=https://heater-repair-workshop-api.onrender.com/api
 ```
 
 The included `wrangler.jsonc` publishes `dist` as static assets and configures
 the fallback required by a single-page application. After Cloudflare assigns
 the final `workers.dev` URL, configure that exact URL as
 `CORS_ALLOWED_ORIGINS` in the Render service and redeploy the API.
+
+The production frontend is available at:
+
+- Web application: <https://heater-repair-workshop-frontend.franco-armijo.workers.dev>
+
+For a manual deployment from a machine authenticated with Cloudflare, run:
+
+```bash
+npm install
+npm run deploy
+```
+
+Validate the deployment by opening the web application and confirming that the
+repair-order list loads from Render. The API can also be checked directly:
+
+```bash
+curl -i https://heater-repair-workshop-api.onrender.com/api/repair-orders
+```
+
+It must return `200` with a JSON array. If the frontend reports a connection
+error, verify `VITE_API_URL`, rebuild the frontend, and confirm that Render's
+`CORS_ALLOWED_ORIGINS` exactly matches the Cloudflare Workers origin.
