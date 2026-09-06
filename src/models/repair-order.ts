@@ -1,17 +1,27 @@
 export enum RepairStatus {
-  RECEIVED = 'received',
-  IN_REPAIR = 'in_repair',
-  COMPLETED = 'completed',
+  RECEIVED = 'RECEIVED',
+  IN_PROGRESS = 'IN_PROGRESS',
+  COMPLETED = 'COMPLETED',
 }
 
 export interface RepairOrder {
-  id: number
+  id: string
   customerName: string
-  customerPhone: string
+  customerContact: string
   heaterBrand: string
   heaterModel: string
   reportedIssue: string
+  diagnosis: string | null
   status: RepairStatus
   receivedAt: string
-  completedAt?: string
+  completedAt: string | null
 }
+
+export type CreateRepairOrderPayload = Pick<
+  RepairOrder,
+  | 'customerName'
+  | 'customerContact'
+  | 'heaterBrand'
+  | 'heaterModel'
+  | 'reportedIssue'
+>

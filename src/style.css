@@ -951,7 +951,7 @@ body::before {
   background: #7aa8c1;
 }
 
-.repair-card--in_repair::before {
+.repair-card--in-progress::before {
   background: #e7bd52;
 }
 
@@ -1034,7 +1034,7 @@ body::before {
   white-space: nowrap;
 }
 
-.repair-card__status--in_repair {
+.repair-card__status--in-progress {
   color: var(--repair-text);
   background: var(--repair-bg);
 }
@@ -1076,6 +1076,47 @@ body::before {
   color: var(--muted);
   font-size: 15px;
   line-height: 1.6;
+}
+
+.repair-card__diagnosis {
+  position: relative;
+  z-index: 1;
+  margin: 16px 0 0;
+  color: var(--ink);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.repair-card__actions {
+  position: relative;
+  z-index: 1;
+  margin-top: 20px;
+}
+
+.repair-card__actions button {
+  min-height: 40px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: 999px;
+  color: #fff;
+  background: var(--ink);
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.repair-card__actions button:disabled {
+  cursor: wait;
+  opacity: 0.55;
+}
+
+.repair-card__action-error {
+  min-height: 1.4em;
+  margin: 10px 0 0;
+  color: var(--accent-dark);
+  font-size: 12px;
+  font-weight: 650;
 }
 
 .repair-card__dates {

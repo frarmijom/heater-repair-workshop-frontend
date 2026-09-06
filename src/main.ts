@@ -14,8 +14,10 @@ import type { RepairOrderFilter } from './components/repair-order-filters.ts'
 import { generateWorkshopMonitorHtml } from './components/workshop-monitor.ts'
 import type { RepairOrder } from './models/index.ts'
 import {
+  completeRepairOrder,
   createRepairOrder,
   loadRepairOrders,
+  startRepairOrder,
 } from './services/repair-order-service.ts'
 
 let repairOrders: RepairOrder[] = []
@@ -40,7 +42,7 @@ function showLoadingState(): void {
     <main class="request-state" aria-live="polite" aria-busy="true">
       <span class="request-state__spinner" aria-hidden="true"></span>
       <div>
-        <p>Simulated service</p>
+        <p>Workshop API</p>
         <h1>Loading repair orders…</h1>
       </div>
     </main>
@@ -128,6 +130,67 @@ async function addRepairOrder(payload: RepairOrderFormPayload): Promise<void> {
   } catch (error: unknown) {
     throw new Error(getErrorMessage(error))
   }
+}
+
+function replaceRepairOrder(updatedOrder: RepairOrder): void {
+  repairOrders = repairOrders.map((order) =>
+    order.id === updatedOrder.id ? updatedOrder : order,
+  )
+  renderDashboard()
+}
+
+function setupRepairOrderActions(): void {
+  const repairList = appContainer.querySelector<HTMLElement>('#repair-order-list')
+  if (repairList === null) {
+    throw new Error('The repair order list was not found.')
+  }
+
+  repairList.addEventListener('click', (event: MouseEvent) => {
+    const target = event.target
+    if (!(target instanceof HTMLButtonElement)) {
+      return
+    }
+
+    const action = target.dataset.repairAction
+    const orderId = target.dataset.repairOrderId
+    if ((action !== 'start' && action !== 'complete') || orderId === undefined) {
+      return
+    }
+
+    const card = target.closest<HTMLElement>('.repair-card')
+    const errorElement = card?.querySelector<HTMLElement>(
+      '.repair-card__action-error',
+    )
+    const executeAction = async (): Promise<void> => {
+      target.disabled = true
+      if (errorElement !== undefined && errorElement !== null) {
+        errorElement.textContent = ''
+      }
+
+      try {
+        if (action === 'start') {
+          const diagnosis = window.prompt('Enter the repair diagnosis:')?.trim()
+          if (diagnosis === undefined) {
+            target.disabled = false
+            return
+          }
+          if (diagnosis.length === 0) {
+            throw new Error('A diagnosis is required to start the repair.')
+          }
+          replaceRepairOrder(await startRepairOrder(orderId, diagnosis))
+        } else {
+          replaceRepairOrder(await completeRepairOrder(orderId))
+        }
+      } catch (error: unknown) {
+        target.disabled = false
+        if (errorElement !== undefined && errorElement !== null) {
+          errorElement.textContent = getErrorMessage(error)
+        }
+      }
+    }
+
+    void executeAction()
+  })
 }
 
 function setupRepairOrderFilters(): void {
@@ -229,6 +292,7 @@ function renderDashboard(): void {
   startClock()
   setupRepairOrderForm(appContainer, addRepairOrder)
   setupRepairOrderFilters()
+  setupRepairOrderActions()
 }
 
 async function initializeApplication(): Promise<void> {
