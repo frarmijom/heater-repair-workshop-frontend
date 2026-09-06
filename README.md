@@ -54,7 +54,7 @@ Import this Git repository in Cloudflare Workers and use the following build
 configuration:
 
 ```text
-Production branch: hito-6
+Production branch: main
 Build command: npm run build
 Build output directory: dist
 ```
