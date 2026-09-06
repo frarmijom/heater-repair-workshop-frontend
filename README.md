@@ -48,9 +48,9 @@ Open <http://localhost:8081>. Nginx serves the production frontend and proxies
 requests under `/api` to the Spring Boot backend within the Docker network.
 Node.js is not required on the host for this workflow.
 
-## Deploy on Cloudflare Pages
+## Deploy on Cloudflare Workers
 
-Import this Git repository in Cloudflare Pages and use the following build
+Import this Git repository in Cloudflare Workers and use the following build
 configuration:
 
 ```text
@@ -65,5 +65,7 @@ Add this production environment variable before deploying:
 VITE_API_URL=https://YOUR_RENDER_SERVICE.onrender.com/api
 ```
 
-After Cloudflare assigns the final `pages.dev` URL, configure that exact URL as
+The included `wrangler.jsonc` publishes `dist` as static assets and configures
+the fallback required by a single-page application. After Cloudflare assigns
+the final `workers.dev` URL, configure that exact URL as
 `CORS_ALLOWED_ORIGINS` in the Render service and redeploy the API.
