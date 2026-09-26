@@ -26,6 +26,7 @@ import {
 let repairOrders: RepairOrder[] = []
 let selectedFilter: RepairOrderFilter = 'all'
 let renderedDetailOrder: RepairOrder | undefined
+const pendingRepairActions = new Set<string>()
 let authenticated = false
 let viewGeneration = 0
 let clockIntervalId: number | undefined
@@ -158,34 +159,8 @@ function setupRepairOrderActions(): void {
       return
     }
 
-    const card = target.closest<HTMLElement>('.repair-card')
-    const errorElement = card?.querySelector<HTMLElement>(
-      '.repair-card__action-error',
-    )
-    const generation = viewGeneration
-    const executeAction = async (): Promise<void> => {
-      target.disabled = true
-      if (errorElement !== undefined && errorElement !== null) {
-        errorElement.textContent = ''
-      }
+    window.location.hash = `#repairs/${encodeURIComponent(orderId)}`
 
-      try {
-        if (action === 'start') {
-          target.disabled = false
-          window.location.hash = `#repairs/${encodeURIComponent(orderId)}`
-          return
-        }
-        const updated = await completeRepairOrder(orderId)
-        if (generation === viewGeneration) replaceRepairOrder(updated)
-      } catch (error: unknown) {
-        target.disabled = false
-        if (errorElement !== undefined && errorElement !== null) {
-          errorElement.textContent = getErrorMessage(error)
-        }
-      }
-    }
-
-    void executeAction()
   })
 }
 
@@ -320,11 +295,44 @@ function updateRepairDetail(): void {
   const errorElement = container.querySelector<HTMLElement>('#detail-action-error')
   if (!button || !errorElement) return
   const generation = viewGeneration
-  let pending = false
+  const actions = container.querySelector<HTMLElement>('#detail-actions')!
+  const opener = container.querySelector<HTMLButtonElement>('#detail-complete')
+  const confirmation = container.querySelector<HTMLElement>('#complete-confirmation')
+  const cancel = container.querySelector<HTMLButtonElement>('#cancel-complete')
+  const idleLabel = button.textContent
+  const setPending = (pending: boolean): void => {
+    button.disabled = pending
+    if (opener) opener.disabled = pending
+    if (cancel) cancel.disabled = pending
+    actions.setAttribute('aria-busy', String(pending))
+    form?.setAttribute('aria-busy', String(pending))
+    button.textContent = pending ? (input ? 'Starting repair…' : 'Completing repair…') : idleLabel
+  }
+  const showConfirmation = (show: boolean): void => {
+    if (!opener || !confirmation || !cancel) return
+    opener.hidden = show
+    opener.setAttribute('aria-expanded', String(show))
+    confirmation.hidden = !show
+    if (show) cancel.focus()
+    else opener.focus()
+  }
+  opener?.addEventListener('click', () => {
+    if (!pendingRepairActions.has(order.id)) showConfirmation(true)
+  })
+  cancel?.addEventListener('click', () => {
+    if (pendingRepairActions.has(order.id)) return
+    errorElement.textContent = ''
+    showConfirmation(false)
+  })
+  if (pendingRepairActions.has(order.id)) {
+    if (confirmation) showConfirmation(true)
+    setPending(true)
+  }
   const execute = async (): Promise<void> => {
-    if (pending) return
+    if (pendingRepairActions.has(order.id) || (confirmation && confirmation.hidden)) return
     const diagnosis = input?.value.trim()
     errorElement.textContent = ''
+    appContainer.querySelector<HTMLElement>('#repair-action-status')!.textContent = ''
     if (input) {
       input.setAttribute('aria-invalid', String(!diagnosis))
       if (!diagnosis) {
@@ -333,21 +341,33 @@ function updateRepairDetail(): void {
         return
       }
     }
-    pending = true
-    button.disabled = true
-    form?.setAttribute('aria-busy', 'true')
+    pendingRepairActions.add(order.id)
+    setPending(true)
     try {
       const updated = input ? await startRepairOrder(order.id, diagnosis!) : await completeRepairOrder(order.id)
       if (!authenticated || generation !== viewGeneration) return
+      pendingRepairActions.delete(order.id)
       replaceRepairOrder(updated)
+      appContainer.querySelector<HTMLElement>('#repair-action-status')!.textContent = input
+        ? 'Repair started successfully.' : 'Repair completed successfully.'
       if (selectedRepairId() === order.id) appContainer.querySelector<HTMLElement>('#repair-detail-title')?.focus()
     } catch (error: unknown) {
       if (generation !== viewGeneration) return
       errorElement.textContent = getErrorMessage(error)
     } finally {
-      pending = false
-      button.disabled = false
-      form?.removeAttribute('aria-busy')
+      if (generation === viewGeneration) {
+        pendingRepairActions.delete(order.id)
+        // Navigation may have replaced the pending form. Restore retry feedback there too.
+        if (authenticated && selectedRepairId() === order.id && renderedDetailOrder === order && !button.isConnected) {
+          renderedDetailOrder = undefined
+          updateRepairDetail()
+          const currentInput = appContainer.querySelector<HTMLTextAreaElement>('#repair-diagnosis')
+          if (currentInput && input) currentInput.value = input.value
+          const currentError = appContainer.querySelector<HTMLElement>('#detail-action-error')
+          if (currentError) currentError.textContent = errorElement.textContent
+        }
+      }
+      setPending(false)
     }
   }
   if (form) form.addEventListener('submit', event => { event.preventDefault(); void execute() })
@@ -359,6 +379,7 @@ function showLogin(message = ''): void {
   viewGeneration++
   repairOrders = []
   selectedFilter = 'all'
+  pendingRepairActions.clear()
   renderedDetailOrder = undefined
   if (clockIntervalId !== undefined) window.clearInterval(clockIntervalId)
   clockIntervalId = undefined

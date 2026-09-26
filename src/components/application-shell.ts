@@ -14,6 +14,7 @@ export function generateApplicationShellHtml(content: string): string {
         <a href="#repairs">Repairs</a>
       </nav>
       <main id="main-content" class="workshop app-shell__main" tabindex="-1">
+        <p id="repair-action-status" role="status"></p>
         ${content}
       </main>
     </div>

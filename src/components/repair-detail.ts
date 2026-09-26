@@ -25,7 +25,13 @@ export function generateRepairDetailHtml(order: RepairOrder | undefined): string
       <label for="repair-diagnosis">Diagnosis</label>
       <textarea id="repair-diagnosis" name="diagnosis" rows="4" required aria-describedby="detail-action-error"></textarea>
       <button type="submit" data-repair-action="start">Start repair</button>
-    </form>` : order.status === RepairStatus.IN_PROGRESS ? '<button id="detail-complete" type="button" data-repair-action="complete">Complete repair</button>' : ''
+    </form>` : order.status === RepairStatus.IN_PROGRESS ? `<button id="detail-complete" type="button" aria-expanded="false" aria-controls="complete-confirmation">Complete repair</button>
+      <section id="complete-confirmation" aria-labelledby="complete-confirmation-title" hidden>
+        <h3 id="complete-confirmation-title">Complete this repair?</h3>
+        <p>This will mark the repair order as completed.</p>
+        <button id="cancel-complete" type="button">Cancel</button>
+        <button id="confirm-complete" type="button" data-repair-action="complete">Complete repair</button>
+      </section>` : ''
   return `
     ${back}
     <header class="app-shell__page-header">
@@ -46,6 +52,6 @@ export function generateRepairDetailHtml(order: RepairOrder | undefined): string
         ${order.diagnosis ? `<div><dt>Diagnosis</dt><dd>${escapeHtml(order.diagnosis)}</dd></div>` : ''}
       </dl>
     </section>
-    ${action ? `<section aria-labelledby="detail-action-title"><h2 id="detail-action-title">Next action</h2>${action}<p id="detail-action-error" role="alert"></p></section>` : ''}
+    ${action ? `<section id="detail-actions" aria-labelledby="detail-action-title"><h2 id="detail-action-title">Next action</h2>${action}<p id="detail-action-error" role="alert"></p></section>` : ''}
   `
 }

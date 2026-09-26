@@ -874,3 +874,9 @@ body::before {
 @media (max-width: 600px) {
   .repair-lifecycle { grid-template-columns: minmax(0, 1fr); }
 }
+
+#repair-action-status:empty { margin: 0; }
+#repair-action-status:not(:empty) { padding: 1rem; border: 1px solid var(--completed-text); background: var(--completed-bg); color: var(--completed-text); }
+#complete-confirmation { padding: 1rem; border: 1px solid var(--line); background: var(--paper); }
+#complete-confirmation h3 { margin-top: 0; }
+#complete-confirmation button { margin: 0.25rem; }

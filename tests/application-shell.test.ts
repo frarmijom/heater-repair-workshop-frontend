@@ -155,6 +155,9 @@ describe('authenticated application shell', () => {
     expect(document.querySelector('.dashboard-metric--in-progress dd')?.textContent).toBe('1')
     await navigate('repairs')
     document.querySelector<HTMLButtonElement>('[data-repair-order-id="order-1"][data-repair-action="complete"]')!.click()
+    await vi.waitFor(() => expect(panel('repair-detail').hidden).toBe(false))
+    document.querySelector<HTMLButtonElement>('#detail-complete')!.click()
+    document.querySelector<HTMLButtonElement>('#confirm-complete')!.click()
     await vi.waitFor(() => expect(document.querySelector('.repair-card--completed')).not.toBeNull())
     expect(active()).toBe('Repairs')
     await navigate('dashboard')
@@ -308,7 +311,8 @@ describe('authenticated application shell', () => {
     expect(document.querySelector('.dashboard-metric--in-progress dd')?.textContent).toBe('1')
     expect(document.querySelector('[data-repair-status="IN_PROGRESS"] strong')?.textContent).toBe('1')
     expect(document.querySelector('[data-repair-status="RECEIVED"]')?.getAttribute('aria-pressed')).toBe('true')
-    const button = document.querySelector<HTMLButtonElement>('#detail-complete')!
+    document.querySelector<HTMLButtonElement>('#detail-complete')!.click()
+    const button = document.querySelector<HTMLButtonElement>('#confirm-complete')!
     button.click()
     button.click()
     await vi.waitFor(() => expect(panel('repair-detail').querySelector('[aria-current="step"]')?.getAttribute('data-stage')).toBe('COMPLETED'))
@@ -337,6 +341,136 @@ describe('authenticated application shell', () => {
     await new Promise(resolve => setTimeout(resolve, 0))
     expect(document.querySelector('.app-shell')).toBeNull()
     expect(document.querySelector('#login-form')).not.toBeNull()
+  })
+
+
+  it.each(['', '   '])('rejects blank diagnosis %j inline and focuses the input', async value => {
+    await startup('#repairs/order-1')
+    const input = document.querySelector<HTMLTextAreaElement>('#repair-diagnosis')!
+    input.value = value
+    document.querySelector<HTMLButtonElement>('#diagnosis-form button')!.click()
+    expect(document.activeElement).toBe(input)
+    expect(input.getAttribute('aria-invalid')).toBe('true')
+    expect(document.querySelector('#detail-action-error')?.textContent).toContain('A diagnosis is required')
+    expect(fetchMock.mock.calls.some(([url]) => url.endsWith('/start'))).toBe(false)
+  })
+
+  it.each(['start', 'complete'])('shows pending, retries failure and announces backend success for %s', async action => {
+    const initial = { ...order, status: action === 'start' ? 'RECEIVED' : 'IN_PROGRESS', diagnosis: null }
+    const original = fetchMock.getMockImplementation()!
+    let resolveAction: ((response: Response) => void) | undefined
+    fetchMock.mockImplementation((url: string, init: RequestInit) => {
+      if (url === '/api/repair-orders') return Promise.resolve(json([initial]))
+      if (url.endsWith('/' + action)) return new Promise<Response>(resolve => { resolveAction = resolve })
+      return original(url, init)
+    })
+    await startup('#repairs/order-1')
+    const input = document.querySelector<HTMLTextAreaElement>('#repair-diagnosis')
+    if (input) input.value = '  Replace valve  '
+    else document.querySelector<HTMLButtonElement>('#detail-complete')!.click()
+    const button = document.querySelector<HTMLButtonElement>('.repair-detail [data-repair-action]')!
+    const submit = () => input
+      ? document.querySelector('#diagnosis-form')!.dispatchEvent(new Event('submit', { cancelable: true }))
+      : button.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    submit(); submit(); submit()
+    expect(button.disabled).toBe(true)
+    expect(button.textContent).toBe(action === 'start' ? 'Starting repair…' : 'Completing repair…')
+    expect(document.querySelector('#detail-actions')?.getAttribute('aria-busy')).toBe('true')
+    if (!input) expect(document.querySelector<HTMLButtonElement>('#cancel-complete')!.disabled).toBe(true)
+    await vi.waitFor(() => expect(resolveAction).toBeDefined())
+    expect(fetchMock.mock.calls.filter(([url]) => url.endsWith('/' + action))).toHaveLength(1)
+    expect(panel('repair-detail').querySelector('[aria-current="step"]')?.getAttribute('data-stage')).toBe(initial.status)
+    resolveAction!(json({}, 500))
+    await vi.waitFor(() => expect(button.disabled).toBe(false))
+    expect(button.textContent).toBe(action === 'start' ? 'Start repair' : 'Complete repair')
+    expect(document.querySelector('#detail-actions')?.getAttribute('aria-busy')).toBe('false')
+    expect(document.querySelector('#detail-action-error')?.textContent).toBe('Unable to complete the request.')
+    expect(document.querySelector('#repair-action-status')?.textContent).toBe('')
+    expect(panel('repair-detail').querySelector('[aria-current="step"]')?.getAttribute('data-stage')).toBe(initial.status)
+    if (input) expect(input.value).toBe('  Replace valve  ')
+    resolveAction = undefined
+    submit()
+    await vi.waitFor(() => expect(resolveAction).toBeDefined())
+    const result = { ...initial, status: action === 'start' ? 'IN_PROGRESS' : 'COMPLETED', diagnosis: 'Backend diagnosis', completedAt: action === 'complete' ? '2026-10-01T09:00:00Z' : null }
+    resolveAction!(json(result))
+    await vi.waitFor(() => expect(document.querySelector('#repair-action-status')?.textContent).toBe(action === 'start' ? 'Repair started successfully.' : 'Repair completed successfully.'))
+    expect(document.querySelector('#repair-action-status')?.getAttribute('role')).toBe('status')
+    expect(panel('repair-detail').textContent).toContain('Backend diagnosis')
+    expect(panel('repair-detail').querySelector('[aria-current="step"]')?.getAttribute('data-stage')).toBe(result.status)
+    // Reload obtains the persisted state from the backend, not client storage.
+    fetchMock.mockImplementation((url: string, init: RequestInit) => url === '/api/repair-orders' ? Promise.resolve(json([result])) : original(url, init))
+    vi.resetModules()
+    await import('../src/main.ts')
+    await vi.waitFor(() => expect(panel('repair-detail').querySelector('[aria-current="step"]')?.getAttribute('data-stage')).toBe(result.status))
+    expect(document.querySelector('#repair-action-status')?.textContent).toBe('')
+  })
+
+  it('requires confirmation, cancels without mutation and restores focus', async () => {
+    const original = fetchMock.getMockImplementation()!
+    fetchMock.mockImplementation((url: string, init: RequestInit) => url === '/api/repair-orders'
+      ? Promise.resolve(json([{ ...order, status: 'IN_PROGRESS' }])) : original(url, init))
+    await startup('#repairs')
+    document.querySelector<HTMLButtonElement>('[data-repair-action="complete"]')!.click()
+    await vi.waitFor(() => expect(panel('repair-detail').hidden).toBe(false))
+    const opener = document.querySelector<HTMLButtonElement>('#detail-complete')!
+    const confirmation = document.querySelector<HTMLElement>('#complete-confirmation')!
+    expect(confirmation.hidden).toBe(true)
+    opener.click()
+    expect(confirmation.hidden).toBe(false)
+    expect(confirmation.textContent).toContain('This will mark the repair order as completed.')
+    expect(document.activeElement?.id).toBe('cancel-complete')
+    expect(fetchMock.mock.calls.some(([url]) => url.endsWith('/complete'))).toBe(false)
+    document.querySelector<HTMLButtonElement>('#cancel-complete')!.click()
+    expect(confirmation.hidden).toBe(true)
+    expect(opener.hidden).toBe(false)
+    expect(document.activeElement).toBe(opener)
+    expect(fetchMock.mock.calls.some(([url]) => url.endsWith('/complete'))).toBe(false)
+  })
+
+  it('ignores a late completion after logout', async () => {
+    const original = fetchMock.getMockImplementation()!
+    let resolveComplete: ((response: Response) => void) | undefined
+    fetchMock.mockImplementation((url: string, init: RequestInit) => {
+      if (url === '/api/repair-orders') return Promise.resolve(json([{ ...order, status: 'IN_PROGRESS' }]))
+      if (url.endsWith('/complete')) return new Promise<Response>(resolve => { resolveComplete = resolve })
+      return original(url, init)
+    })
+    await startup('#repairs/order-1')
+    document.querySelector<HTMLButtonElement>('#detail-complete')!.click()
+    document.querySelector<HTMLButtonElement>('#confirm-complete')!.click()
+    await vi.waitFor(() => expect(resolveComplete).toBeDefined())
+    document.querySelector<HTMLButtonElement>('#logout')!.click()
+    await vi.waitFor(() => expect(document.querySelector('#login-form')).not.toBeNull())
+    resolveComplete!(json({ ...order, status: 'COMPLETED', completedAt: '2026-10-01T09:00:00Z' }))
+    await new Promise(resolve => setTimeout(resolve, 0))
+    expect(document.querySelector('.app-shell')).toBeNull()
+    expect(document.querySelector('#repair-action-status')).toBeNull()
+  })
+
+
+  it('keeps an action pending across detail navigation and restores retry after failure', async () => {
+    const original = fetchMock.getMockImplementation()!
+    let resolveStart: ((response: Response) => void) | undefined
+    fetchMock.mockImplementation((url: string, init: RequestInit) => {
+      if (url === '/api/repair-orders') return Promise.resolve(json([order, { ...order, id: 'other' }]))
+      if (url.endsWith('/start')) return new Promise<Response>(resolve => { resolveStart = resolve })
+      return original(url, init)
+    })
+    await startup('#repairs/order-1')
+    document.querySelector<HTMLTextAreaElement>('#repair-diagnosis')!.value = 'Keep this diagnosis'
+    document.querySelector<HTMLButtonElement>('#diagnosis-form button')!.click()
+    await vi.waitFor(() => expect(resolveStart).toBeDefined())
+    location.hash = '#repairs/other'
+    await vi.waitFor(() => expect(document.querySelector('#repair-detail-title')?.textContent).toContain('other'))
+    location.hash = '#repairs/order-1'
+    await vi.waitFor(() => expect(document.querySelector('#repair-detail-title')?.textContent).toContain('order-1'))
+    expect(document.querySelector<HTMLButtonElement>('#diagnosis-form button')!.disabled).toBe(true)
+    document.querySelector('#diagnosis-form')!.dispatchEvent(new Event('submit', { cancelable: true }))
+    expect(fetchMock.mock.calls.filter(([url]) => url.endsWith('/start'))).toHaveLength(1)
+    resolveStart!(json({}, 500))
+    await vi.waitFor(() => expect(document.querySelector<HTMLButtonElement>('#diagnosis-form button')!.disabled).toBe(false))
+    expect(document.querySelector<HTMLTextAreaElement>('#repair-diagnosis')!.value).toBe('Keep this diagnosis')
+    expect(document.querySelector('#detail-action-error')?.textContent).toBe('Unable to complete the request.')
   })
 
 })
