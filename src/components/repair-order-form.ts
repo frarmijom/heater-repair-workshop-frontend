@@ -35,7 +35,7 @@ function validatePayload(payload: RepairOrderFormPayload): FormErrors {
 
 export function generateRepairOrderFormHtml(): string {
   return `
-    <details class="order-form-panel" open>
+    <details class="order-form-panel">
       <summary class="order-form-panel__header">
         <span>
           <span class="order-form-panel__eyebrow">New workshop entry</span>
@@ -110,6 +110,7 @@ export function setupRepairOrderForm(
     throw new Error('The repair order form is incomplete.')
   }
 
+  let submitting = false
   let hasAttemptedSubmit = false
   const touchedFields = new Set<FormField>()
 
@@ -166,12 +167,18 @@ export function setupRepairOrderForm(
 
   form.addEventListener('submit', async (event: SubmitEvent) => {
     event.preventDefault()
+    if (submitting) return
     hasAttemptedSubmit = true
 
     const payload = readPayload()
     const isValid = validateCurrentValues()
 
+    if (!isValid) {
+      controls.find(control => control.getAttribute('aria-invalid') === 'true')?.focus()
+    }
+
     if (isValid) {
+      submitting = true
       form.setAttribute('aria-busy', 'true')
       submitButton.disabled = true
       submitButton.textContent = 'Adding order…'
@@ -188,6 +195,8 @@ export function setupRepairOrderForm(
         form.setAttribute('aria-busy', 'false')
         submitButton.disabled = false
         submitButton.textContent = 'Add repair order'
+      } finally {
+        submitting = false
       }
     }
   })

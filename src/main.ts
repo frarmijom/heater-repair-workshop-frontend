@@ -1,7 +1,8 @@
 import './style.css'
 import { checkSession, login, logout } from './services/auth-service.ts'
 import { SessionExpiredError, setSessionExpiredHandler } from './services/api.ts'
-import masterTechnicianImage from './assets/master-technician-v3.png'
+import { generateApplicationShellHtml, updateShellDestination, selectedRepairId } from './components/application-shell.ts'
+import { generateRepairDetailHtml } from './components/repair-detail.ts'
 import { generateRepairOrderCardHtml } from './components/repair-order-card.ts'
 import {
   generateRepairOrderFormHtml,
@@ -23,6 +24,9 @@ import {
 } from './services/repair-order-service.ts'
 
 let repairOrders: RepairOrder[] = []
+let selectedFilter: RepairOrderFilter = 'all'
+let renderedDetailOrder: RepairOrder | undefined
+const pendingRepairActions = new Set<string>()
 let authenticated = false
 let viewGeneration = 0
 let clockIntervalId: number | undefined
@@ -42,20 +46,20 @@ function getErrorMessage(error: unknown): string {
 }
 
 function showLoadingState(): void {
-  appContainer.innerHTML = `
-    <main class="request-state" aria-live="polite" aria-busy="true">
+  renderApplicationContent(`
+    <${authenticated ? 'div' : 'main'} class="request-state" aria-live="polite" aria-busy="true">
       <span class="request-state__spinner" aria-hidden="true"></span>
       <div>
         <p>Workshop API</p>
         <h1>Loading workshop…</h1>
       </div>
-    </main>
-  `
+    </${authenticated ? 'div' : 'main'}>
+  `)
 }
 
 function showErrorState(error: unknown): void {
-  appContainer.innerHTML = `
-    <main class="request-state request-state--error" role="alert">
+  renderApplicationContent(`
+    <${authenticated ? 'div' : 'main'} class="request-state request-state--error" role="alert">
       <span class="request-state__mark" aria-hidden="true">!</span>
       <div>
         <p>Loading error</p>
@@ -63,8 +67,8 @@ function showErrorState(error: unknown): void {
         <p id="load-error-message" class="request-state__message"></p>
         <button id="retry-load" type="button">Try again</button>
       </div>
-    </main>
-  `
+    </${authenticated ? 'div' : 'main'}>
+  `)
 
   const message = appContainer.querySelector<HTMLParagraphElement>(
     '#load-error-message',
@@ -84,10 +88,9 @@ function showErrorState(error: unknown): void {
 
 function startClock(): void {
   const clock = appContainer.querySelector<HTMLTimeElement>('#workshop-clock')
-  const greeting = appContainer.querySelector<HTMLHeadingElement>('#workshop-greeting')
 
-  if (clock === null || greeting === null) {
-    throw new Error('The workshop clock or greeting element was not found.')
+  if (clock === null) {
+    throw new Error('The workshop clock element was not found.')
   }
 
   const dateFormatter = new Intl.DateTimeFormat(undefined, { dateStyle: 'full' })
@@ -99,16 +102,8 @@ function startClock(): void {
 
   const updateClock = (): void => {
     const now = new Date()
-    const hour = now.getHours()
     clock.dateTime = now.toISOString()
     clock.replaceChildren()
-
-    greeting.textContent =
-      hour < 12
-        ? 'Good morning.'
-        : hour < 18
-          ? 'Good afternoon.'
-          : 'Good evening.'
 
     const date = document.createElement('span')
     date.textContent = dateFormatter.format(now)
@@ -132,7 +127,7 @@ async function addRepairOrder(payload: RepairOrderFormPayload): Promise<void> {
     const createdOrder = await createRepairOrder(payload)
     if (!authenticated || generation !== viewGeneration) return
     repairOrders = [...repairOrders, createdOrder]
-    renderDashboard()
+    renderWorkshop()
   } catch (error: unknown) {
     throw new Error(getErrorMessage(error))
   }
@@ -143,7 +138,7 @@ function replaceRepairOrder(updatedOrder: RepairOrder): void {
   repairOrders = repairOrders.map((order) =>
     order.id === updatedOrder.id ? updatedOrder : order,
   )
-  renderDashboard()
+  renderWorkshop()
 }
 
 function setupRepairOrderActions(): void {
@@ -164,62 +159,34 @@ function setupRepairOrderActions(): void {
       return
     }
 
-    const card = target.closest<HTMLElement>('.repair-card')
-    const errorElement = card?.querySelector<HTMLElement>(
-      '.repair-card__action-error',
-    )
-    const generation = viewGeneration
-    const executeAction = async (): Promise<void> => {
-      target.disabled = true
-      if (errorElement !== undefined && errorElement !== null) {
-        errorElement.textContent = ''
-      }
+    window.location.hash = `#repairs/${encodeURIComponent(orderId)}`
 
-      try {
-        if (action === 'start') {
-          const diagnosis = window.prompt('Enter the repair diagnosis:')?.trim()
-          if (diagnosis === undefined) {
-            target.disabled = false
-            return
-          }
-          if (diagnosis.length === 0) {
-            throw new Error('A diagnosis is required to start the repair.')
-          }
-          const updated = await startRepairOrder(orderId, diagnosis)
-          if (generation === viewGeneration) replaceRepairOrder(updated)
-        } else {
-          const updated = await completeRepairOrder(orderId)
-          if (generation === viewGeneration) replaceRepairOrder(updated)
-        }
-      } catch (error: unknown) {
-        target.disabled = false
-        if (errorElement !== undefined && errorElement !== null) {
-          errorElement.textContent = getErrorMessage(error)
-        }
-      }
-    }
-
-    void executeAction()
   })
 }
 
 function setupRepairOrderFilters(): void {
   const repairList = appContainer.querySelector<HTMLElement>('#repair-order-list')
   const visibleCount = appContainer.querySelector<HTMLElement>('#visible-order-count')
+  const emptyMessage = appContainer.querySelector<HTMLElement>('#repair-order-empty')
   const filterButtons = appContainer.querySelectorAll<HTMLButtonElement>(
     '[data-repair-status]',
   )
 
-  if (repairList === null || visibleCount === null) {
+  if (repairList === null || visibleCount === null || emptyMessage === null) {
     throw new Error('The repair order list controls were not found.')
   }
 
   const renderFilteredOrders = (filter: RepairOrderFilter): void => {
+    selectedFilter = filter
     const visibleOrders = repairOrders.filter(
       ({ status }) => filter === 'all' || status === filter,
     )
     repairList.innerHTML = visibleOrders.map(generateRepairOrderCardHtml).join('')
     visibleCount.textContent = `${visibleOrders.length} orders`
+    emptyMessage.hidden = visibleOrders.length > 0
+    emptyMessage.textContent = repairOrders.length === 0
+      ? 'There are no repair orders. Use Add repair order to create one.'
+      : 'There are no repairs matching this filter.'
 
     filterButtons.forEach((button) => {
       button.setAttribute(
@@ -228,6 +195,8 @@ function setupRepairOrderFilters(): void {
       )
     })
   }
+
+  renderFilteredOrders(selectedFilter)
 
   filterButtons.forEach((button) => {
     button.addEventListener('click', () => {
@@ -239,69 +208,60 @@ function setupRepairOrderFilters(): void {
   })
 }
 
-function renderDashboard(): void {
+function renderWorkshop(): void {
   if (!authenticated) return
-  const cardsHtml = repairOrders.map(generateRepairOrderCardHtml).join('')
+  const previousFocus = document.activeElement
 
-  appContainer.innerHTML = `
-    <main class="workshop">
-      <header class="workshop__header">
-        <div class="workshop__identity">
-          <div class="workshop__name">
-            <span class="workshop__mark" aria-hidden="true">HR</span>
-            <span>Heater Repair Workshop</span>
-          </div>
-          <button id="logout" type="button">Sign out</button>
-          <p id="logout-error" role="alert"></p>
-          <time id="workshop-clock" class="workshop__clock"></time>
-        </div>
-        <div class="workshop__heading">
-          <div>
-            <p class="workshop__eyebrow">
-              <span class="workshop__business-name">Taller Fuego Sur</span>
-              <span aria-hidden="true">·</span>
-              <span>Workshop overview</span>
-            </p>
-            <h1 id="workshop-greeting"></h1>
-            <p class="workshop__subtitle">Here is the current repair workload.</p>
-          </div>
-          <div class="hero-scene" aria-hidden="true">
-            <img class="master-technician" src="${masterTechnicianImage}" alt="" />
-            <div class="heater-visual">
-              <span class="heat-wave heat-wave--one"></span>
-              <span class="heat-wave heat-wave--two"></span>
-              <span class="heat-wave heat-wave--three"></span>
-              <div class="heater-visual__unit">
-                <span class="heater-visual__vent"></span>
-                <span class="heater-visual__brand-light"></span>
-                <span class="heater-visual__front-line"></span>
-                <div class="heater-visual__display">
-                  <span>48</span>
-                  <small>°</small>
-                </div>
-                <div class="heater-visual__connections">
-                  <span></span><span></span><span></span>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
+  renderApplicationContent(`
+    <section data-destination="dashboard" aria-labelledby="dashboard-title">
+      <header class="app-shell__page-header">
+        <h1 id="dashboard-title" tabindex="-1">Dashboard</h1>
+        <p>Taller Fuego Sur</p>
+        <time id="workshop-clock" class="workshop__clock"></time>
       </header>
       ${generateWorkshopMonitorHtml(repairOrders)}
+    </section>
+    <section data-destination="repairs" aria-labelledby="repairs-title" hidden>
+      <header class="app-shell__page-header">
+        <h1 id="repairs-title" tabindex="-1">Repairs</h1>
+      </header>
       ${generateRepairOrderFormHtml()}
-      <nav class="repair-filters" aria-label="Repair order status filters">
-        ${generateRepairOrderFiltersHtml(repairOrders)}
-      </nav>
-      <div class="repair-list__heading">
-        <h2>Repair orders</h2>
-        <p id="visible-order-count" class="workshop__count">${repairOrders.length} orders</p>
-      </div>
-      <section id="repair-order-list" class="repair-list" aria-label="Repair orders">
-        ${cardsHtml}
+      <section aria-labelledby="repair-queue-title">
+        <div class="repair-list__heading">
+          <h2 id="repair-queue-title">Repair work queue</h2>
+          <p id="visible-order-count" class="workshop__count" aria-live="polite"></p>
+        </div>
+        <nav class="repair-filters" aria-label="Repair order status filters">
+          ${generateRepairOrderFiltersHtml(repairOrders)}
+        </nav>
+        <p id="repair-order-empty" class="repair-list__empty" role="status" hidden></p>
+        <div id="repair-order-list" class="repair-list"></div>
       </section>
-    </main>
-  `
+    </section>
+    <section class="repair-detail" data-destination="repair-detail" aria-labelledby="repair-detail-title" hidden></section>
+  `)
+  startClock()
+  setupRepairOrderForm(appContainer, addRepairOrder)
+  setupRepairOrderFilters()
+  setupRepairOrderActions()
+  if (previousFocus instanceof HTMLElement && previousFocus !== document.body && !previousFocus.isConnected) {
+    updateShellDestination(appContainer, true)
+  }
+}
 
+// Keep request feedback inside the authenticated shell, including Sign out.
+function renderApplicationContent(content: string): void {
+  if (!authenticated) {
+    appContainer.innerHTML = content
+    return
+  }
+  appContainer.innerHTML = generateApplicationShellHtml(content)
+  renderedDetailOrder = undefined
+  updateRepairDetail()
+  updateShellDestination(appContainer)
+  appContainer.querySelector('.app-shell__skip')!.addEventListener('click', () => {
+    appContainer.querySelector<HTMLElement>('#main-content')!.focus()
+  })
   appContainer.querySelector<HTMLButtonElement>('#logout')!.addEventListener('click', async (event) => {
     const button = event.currentTarget as HTMLButtonElement
     button.disabled = true
@@ -315,16 +275,125 @@ function renderDashboard(): void {
       if (message) message.textContent = 'Unable to complete the request.'
     }
   })
-  startClock()
-  setupRepairOrderForm(appContainer, addRepairOrder)
-  setupRepairOrderFilters()
-  setupRepairOrderActions()
+}
+
+window.addEventListener('hashchange', () => {
+  if (authenticated) {
+    updateRepairDetail()
+    updateShellDestination(appContainer, true)
+  }
+})
+
+function updateRepairDetail(): void {
+  const container = appContainer.querySelector<HTMLElement>('[data-destination="repair-detail"]')
+  const id = selectedRepairId()
+  if (!container || id === null) return
+  const order = repairOrders.find(repair => repair.id === id)
+  if (order && renderedDetailOrder === order && container.childElementCount > 0) return
+  renderedDetailOrder = order
+  container.innerHTML = generateRepairDetailHtml(order)
+  if (!order) return
+  const form = container.querySelector<HTMLFormElement>('#diagnosis-form')
+  const input = container.querySelector<HTMLTextAreaElement>('#repair-diagnosis')
+  const button = container.querySelector<HTMLButtonElement>('button[data-repair-action]')
+  const errorElement = container.querySelector<HTMLElement>('#detail-action-error')
+  if (!button || !errorElement) return
+  const generation = viewGeneration
+  const actions = container.querySelector<HTMLElement>('#detail-actions')!
+  const opener = container.querySelector<HTMLButtonElement>('#detail-complete')
+  const confirmation = container.querySelector<HTMLElement>('#complete-confirmation')
+  const cancel = container.querySelector<HTMLButtonElement>('#cancel-complete')
+  const idleLabel = button.textContent
+  const setPending = (pending: boolean): void => {
+    button.disabled = pending
+    if (opener) opener.disabled = pending
+    if (cancel) cancel.disabled = pending
+    actions.setAttribute('aria-busy', String(pending))
+    form?.setAttribute('aria-busy', String(pending))
+    button.textContent = pending ? (input ? 'Starting repair…' : 'Completing repair…') : idleLabel
+  }
+  const showConfirmation = (show: boolean, moveFocus = true): void => {
+    if (!opener || !confirmation || !cancel) return
+    opener.hidden = show
+    opener.setAttribute('aria-expanded', String(show))
+    confirmation.hidden = !show
+    if (moveFocus) {
+      if (show) cancel.focus()
+      else opener.focus()
+    }
+  }
+  opener?.addEventListener('click', () => {
+    if (!pendingRepairActions.has(order.id)) showConfirmation(true)
+  })
+  cancel?.addEventListener('click', () => {
+    if (pendingRepairActions.has(order.id)) return
+    errorElement.textContent = ''
+    showConfirmation(false)
+  })
+  if (pendingRepairActions.has(order.id)) {
+    if (confirmation) showConfirmation(true, false)
+    setPending(true)
+  }
+  const execute = async (): Promise<void> => {
+    if (pendingRepairActions.has(order.id) || (confirmation && confirmation.hidden)) return
+    const diagnosis = input?.value.trim()
+    errorElement.textContent = ''
+    appContainer.querySelector<HTMLElement>('#repair-action-status')!.textContent = ''
+    if (input) {
+      input.setAttribute('aria-invalid', String(!diagnosis))
+      if (!diagnosis) {
+        errorElement.textContent = 'A diagnosis is required to start the repair.'
+        input.focus()
+        return
+      }
+    }
+    pendingRepairActions.add(order.id)
+    setPending(true)
+    try {
+      const updated = input ? await startRepairOrder(order.id, diagnosis!) : await completeRepairOrder(order.id)
+      if (!authenticated || generation !== viewGeneration) return
+      pendingRepairActions.delete(order.id)
+      replaceRepairOrder(updated)
+      appContainer.querySelector<HTMLElement>('#repair-action-status')!.textContent = input
+        ? 'Repair started successfully.' : 'Repair completed successfully.'
+      if (selectedRepairId() === order.id) appContainer.querySelector<HTMLElement>('#repair-detail-title')?.focus()
+    } catch (error: unknown) {
+      if (generation !== viewGeneration) return
+      errorElement.textContent = getErrorMessage(error)
+    } finally {
+      if (generation === viewGeneration) {
+        pendingRepairActions.delete(order.id)
+        // Navigation may have replaced the pending form. Restore retry feedback there too.
+        if (authenticated && selectedRepairId() === order.id && renderedDetailOrder === order && !button.isConnected) {
+          const restoreFocus = container.contains(document.activeElement)
+          renderedDetailOrder = undefined
+          updateRepairDetail()
+          const currentInput = appContainer.querySelector<HTMLTextAreaElement>('#repair-diagnosis')
+          if (currentInput && input) currentInput.value = input.value
+          const currentError = appContainer.querySelector<HTMLElement>('#detail-action-error')
+          if (currentError) {
+            currentError.textContent = errorElement.textContent
+            if (restoreFocus) {
+              currentError.tabIndex = -1
+              currentError.focus()
+            }
+          }
+        }
+      }
+      setPending(false)
+    }
+  }
+  if (form) form.addEventListener('submit', event => { event.preventDefault(); void execute() })
+  else button.addEventListener('click', () => { void execute() })
 }
 
 function showLogin(message = ''): void {
   authenticated = false
   viewGeneration++
   repairOrders = []
+  selectedFilter = 'all'
+  pendingRepairActions.clear()
+  renderedDetailOrder = undefined
   if (clockIntervalId !== undefined) window.clearInterval(clockIntervalId)
   clockIntervalId = undefined
   appContainer.innerHTML = `
@@ -380,10 +449,11 @@ async function initializeApplication(): Promise<void> {
     await checkSession()
     if (generation !== viewGeneration) return
     authenticated = true
+    showLoadingState()
     const orders = await loadRepairOrders()
     if (generation !== viewGeneration || !authenticated) return
     repairOrders = orders
-    renderDashboard()
+    renderWorkshop()
   } catch (error: unknown) {
     if (error instanceof SessionExpiredError || generation !== viewGeneration) return
     showErrorState(error)

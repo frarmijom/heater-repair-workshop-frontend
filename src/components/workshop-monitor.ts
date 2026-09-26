@@ -1,88 +1,30 @@
 import { RepairStatus } from '../models/index.ts'
 import type { RepairOrder } from '../models/index.ts'
-
-interface MonitorMetric {
-  label: string
-  value: number
-  modifier: string
-}
+import { repairStatusPresentation } from './repair-status.ts'
 
 export function generateWorkshopMonitorHtml(
   repairOrders: readonly RepairOrder[],
 ): string {
-  const total = repairOrders.length
-  const received = repairOrders.filter(
-    ({ status }) => status === RepairStatus.RECEIVED,
-  ).length
-  const inRepair = repairOrders.filter(
-    ({ status }) => status === RepairStatus.IN_PROGRESS,
-  ).length
-  const completed = repairOrders.filter(
-    ({ status }) => status === RepairStatus.COMPLETED,
-  ).length
-
-  const metrics: readonly MonitorMetric[] = [
-    {
-      label: 'Total workload',
-      value: total,
-      modifier: 'total',
-    },
-    {
-      label: 'Received',
-      value: received,
-      modifier: 'received',
-    },
-    {
-      label: 'In repair',
-      value: inRepair,
-      modifier: 'in-repair',
-    },
-    {
-      label: 'Completed',
-      value: completed,
-      modifier: 'completed',
-    },
-  ]
-
-  const metricsHtml = metrics
-    .map(
-      ({ label, value, modifier }) => `
-        <article class="monitor-card monitor-card--${modifier}">
-          <span class="monitor-card__indicator" aria-hidden="true"></span>
-          <strong>${value}</strong>
-          <span>${label}</span>
-        </article>
-      `,
-    )
-    .join('')
-
-  const percentage = (value: number): number =>
-    total === 0 ? 0 : (value / total) * 100
+  const metricsHtml = Object.values(RepairStatus).map(status => {
+    const { label, modifier } = repairStatusPresentation[status]
+    const count = repairOrders.filter(order => order.status === status).length
+    return `
+      <div class="dashboard-metric dashboard-metric--${modifier}">
+        <dt>${label}</dt>
+        <dd>${count}</dd>
+      </div>
+    `
+  }).join('')
 
   return `
-    <section class="monitor" aria-labelledby="monitor-title">
-      <header class="monitor__header">
-        <div>
-          <p>Current status</p>
-          <h2 id="monitor-title">Workshop monitor</h2>
-        </div>
-        <span class="monitor__current">
-          <span aria-hidden="true"></span>
-          Current data
-        </span>
-      </header>
-      <div class="monitor__grid">
+    <section class="dashboard-summary" aria-labelledby="workload-title">
+      <h2 id="workload-title">Workshop overview</h2>
+      <p class="dashboard-summary__description">Current repair workload</p>
+      <dl class="dashboard-summary__metrics">
         ${metricsHtml}
-      </div>
-      <div
-        class="monitor__distribution"
-        role="img"
-        aria-label="${received} received, ${inRepair} in repair, ${completed} completed"
-      >
-        <span class="monitor__segment monitor__segment--received" style="width: ${percentage(received)}%"></span>
-        <span class="monitor__segment monitor__segment--in-repair" style="width: ${percentage(inRepair)}%"></span>
-        <span class="monitor__segment monitor__segment--completed" style="width: ${percentage(completed)}%"></span>
-      </div>
+      </dl>
+      <p class="dashboard-summary__total">Total repairs: <strong>${repairOrders.length}</strong></p>
+      ${repairOrders.length === 0 ? '<p>No repair orders yet.</p>' : ''}
     </section>
   `
 }

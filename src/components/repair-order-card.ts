@@ -1,28 +1,10 @@
 import { RepairStatus } from '../models/index.ts'
 import type { RepairOrder } from '../models/index.ts'
 
-const statusLabels: Record<RepairStatus, string> = {
-  [RepairStatus.RECEIVED]: 'Received',
-  [RepairStatus.IN_PROGRESS]: 'In repair',
-  [RepairStatus.COMPLETED]: 'Completed',
-}
+import { repairStatusPresentation } from './repair-status.ts'
+import { formatRepairDate, formatRepairDateTime } from '../formatters/repair-time.ts'
 
-const statusModifiers: Record<RepairStatus, string> = {
-  [RepairStatus.RECEIVED]: 'received',
-  [RepairStatus.IN_PROGRESS]: 'in-progress',
-  [RepairStatus.COMPLETED]: 'completed',
-}
-
-const receivedDateFormatter = new Intl.DateTimeFormat(undefined, {
-  dateStyle: 'medium',
-  timeStyle: 'short',
-})
-
-const completedDateFormatter = new Intl.DateTimeFormat(undefined, {
-  dateStyle: 'medium',
-})
-
-function escapeHtml(value: string): string {
+export function escapeHtml(value: string): string {
   return value
     .replaceAll('&', '&amp;')
     .replaceAll('<', '&lt;')
@@ -32,13 +14,14 @@ function escapeHtml(value: string): string {
 }
 
 export function generateRepairOrderCardHtml(order: RepairOrder): string {
-  const statusModifier = statusModifiers[order.status]
+  const { label, modifier: statusModifier } = repairStatusPresentation[order.status]
+  const completedDate = formatRepairDate(order.completedAt)
   const completedDateHtml =
-    order.status === RepairStatus.COMPLETED && order.completedAt !== null
+    order.status === RepairStatus.COMPLETED && completedDate !== null
       ? `
         <div>
-          <dt>Completed</dt>
-          <dd>${completedDateFormatter.format(new Date(order.completedAt))}</dd>
+          <dt>${repairStatusPresentation[RepairStatus.COMPLETED].label}</dt>
+          <dd>${completedDate}</dd>
         </div>
       `
       : ''
@@ -56,28 +39,30 @@ export function generateRepairOrderCardHtml(order: RepairOrder): string {
   return `
     <article class="repair-card repair-card--${statusModifier}" data-order-id="${escapeHtml(order.id)}">
       <header class="repair-card__header">
-        <p class="repair-card__id">Repair order #${order.id}</p>
-        <span class="repair-card__status repair-card__status--${statusModifier}">
-          ${statusLabels[order.status]}
-        </span>
+        <p class="repair-card__id">Repair order #${escapeHtml(order.id)}</p>
+        <h3>${escapeHtml(order.heaterBrand)} ${escapeHtml(order.heaterModel)}</h3>
+        <p class="repair-card__customer">
+          ${escapeHtml(order.customerName)} · ${escapeHtml(order.customerContact)}
+        </p>
       </header>
-      <h2>${escapeHtml(order.heaterBrand)} ${escapeHtml(order.heaterModel)}</h2>
-      <p class="repair-card__customer">
-        ${escapeHtml(order.customerName)}
-        <span>${escapeHtml(order.customerContact)}</span>
-      </p>
-      <p class="repair-card__issue">${escapeHtml(order.reportedIssue)}</p>
-      ${diagnosisHtml}
+      <div>
+        <span class="repair-card__status repair-card__status--${statusModifier}">${label}</span>
+      </div>
       <dl class="repair-card__dates">
         <div>
-          <dt>Received</dt>
-          <dd>${receivedDateFormatter.format(new Date(order.receivedAt))}</dd>
+          <dt>${repairStatusPresentation[RepairStatus.RECEIVED].label}</dt>
+          <dd>${formatRepairDateTime(order.receivedAt) ?? 'Date unavailable'}</dd>
         </div>
         ${completedDateHtml}
       </dl>
       <div class="repair-card__actions">
         ${actionHtml}
+        <a class="repair-detail-link" href="#repairs/${escapeHtml(encodeURIComponent(order.id))}">View detail</a>
         <p class="repair-card__action-error" role="alert"></p>
+      </div>
+      <div class="repair-card__notes">
+        <p class="repair-card__issue"><strong>Reported issue:</strong> ${escapeHtml(order.reportedIssue)}</p>
+        ${diagnosisHtml}
       </div>
     </article>
   `
