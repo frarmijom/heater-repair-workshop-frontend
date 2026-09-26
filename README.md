@@ -59,16 +59,17 @@ Build command: npm run build
 Deploy command: npx wrangler@4.129.0 deploy
 ```
 
-Add this production environment variable before deploying:
+AUTH-01 uses same-origin `/api/*` requests. Remove the previous `VITE_API_URL`
+build variable; the application no longer reads it. `wrangler.jsonc` runs
+`worker/api-proxy.mjs` before static assets for `/api/*`. That Worker forwards
+requests to the existing Render HTTPS origin, preserving session cookies and CSRF
+headers and disabling API response caching. It does not follow backend redirects
+or accept requests carrying a foreign Origin. No new Cloudflare secrets are needed.
 
-```text
-VITE_API_URL=https://heater-repair-workshop-api.onrender.com/api
-```
-
-The included `wrangler.jsonc` publishes `dist` as static assets and configures
-the fallback required by a single-page application. After Cloudflare assigns
-the final `workers.dev` URL, configure that exact URL as
-`CORS_ALLOWED_ORIGINS` in the Render service and redeploy the API.
+Keep Render's existing `CORS_ALLOWED_ORIGINS` restricted to the exact frontend URL;
+the browser now talks only to its own origin. Production cookies require HTTPS.
+The production branch setting stays unchanged; AUTH-01 must complete QA/review
+before a separately authorized release.
 
 The production frontend is available at:
 
@@ -88,6 +89,13 @@ repair-order list loads from Render. The API can also be checked directly:
 curl -i https://heater-repair-workshop-api.onrender.com/api/repair-orders
 ```
 
-It must return `200` with a JSON array. If the frontend reports a connection
-error, verify `VITE_API_URL`, rebuild the frontend, and confirm that Render's
-`CORS_ALLOWED_ORIGINS` exactly matches the Cloudflare Workers origin.
+Without a session it must return `401`. `/api/health` returns `200` with an empty
+body. Authenticate through the UI to view orders; no repair-order data is loaded
+before session validation. Sign out invalidates the backend session, and expired
+sessions return to login. No credentials are stored in localStorage/sessionStorage.
+
+Run `npm test` for authentication UI and proxy tests, then `npm run build` for
+TypeScript checks and the production bundle. Vitest and jsdom are development-only
+dependencies. The existing Vite and Nginx local proxies are unchanged. Use the
+backend `dev` profile for local HTTP; production requires HTTPS and Secure cookies.
+See the backend `docs/AUTH-01.md` for first-user provisioning and remaining QA.

@@ -1256,3 +1256,9 @@ body::before {
     transition: none;
   }
 }
+
+.auth-view { flex-direction: column; align-items: stretch; max-width: 30rem; margin: 10vh auto; }
+.auth-form { display: grid; gap: 0.8rem; }
+.auth-form input { width: 100%; box-sizing: border-box; padding: 0.8rem; border: 1px solid #718096; border-radius: 0.4rem; font: inherit; }
+.auth-form button { padding: 0.8rem; cursor: pointer; }
+.auth-form button:disabled { cursor: wait; opacity: 0.65; }

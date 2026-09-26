@@ -1,4 +1,6 @@
 import './style.css'
+import { checkSession, login, logout } from './services/auth-service.ts'
+import { SessionExpiredError, setSessionExpiredHandler } from './services/api.ts'
 import masterTechnicianImage from './assets/master-technician-v3.png'
 import { generateRepairOrderCardHtml } from './components/repair-order-card.ts'
 import {
@@ -21,6 +23,8 @@ import {
 } from './services/repair-order-service.ts'
 
 let repairOrders: RepairOrder[] = []
+let authenticated = false
+let viewGeneration = 0
 let clockIntervalId: number | undefined
 
 const app = document.getElementById('app') as HTMLDivElement | null
@@ -43,7 +47,7 @@ function showLoadingState(): void {
       <span class="request-state__spinner" aria-hidden="true"></span>
       <div>
         <p>Workshop API</p>
-        <h1>Loading repair orders…</h1>
+        <h1>Loading workshop…</h1>
       </div>
     </main>
   `
@@ -123,8 +127,10 @@ function startClock(): void {
 }
 
 async function addRepairOrder(payload: RepairOrderFormPayload): Promise<void> {
+  const generation = viewGeneration
   try {
     const createdOrder = await createRepairOrder(payload)
+    if (!authenticated || generation !== viewGeneration) return
     repairOrders = [...repairOrders, createdOrder]
     renderDashboard()
   } catch (error: unknown) {
@@ -133,6 +139,7 @@ async function addRepairOrder(payload: RepairOrderFormPayload): Promise<void> {
 }
 
 function replaceRepairOrder(updatedOrder: RepairOrder): void {
+  if (!authenticated) return
   repairOrders = repairOrders.map((order) =>
     order.id === updatedOrder.id ? updatedOrder : order,
   )
@@ -161,6 +168,7 @@ function setupRepairOrderActions(): void {
     const errorElement = card?.querySelector<HTMLElement>(
       '.repair-card__action-error',
     )
+    const generation = viewGeneration
     const executeAction = async (): Promise<void> => {
       target.disabled = true
       if (errorElement !== undefined && errorElement !== null) {
@@ -177,9 +185,11 @@ function setupRepairOrderActions(): void {
           if (diagnosis.length === 0) {
             throw new Error('A diagnosis is required to start the repair.')
           }
-          replaceRepairOrder(await startRepairOrder(orderId, diagnosis))
+          const updated = await startRepairOrder(orderId, diagnosis)
+          if (generation === viewGeneration) replaceRepairOrder(updated)
         } else {
-          replaceRepairOrder(await completeRepairOrder(orderId))
+          const updated = await completeRepairOrder(orderId)
+          if (generation === viewGeneration) replaceRepairOrder(updated)
         }
       } catch (error: unknown) {
         target.disabled = false
@@ -230,6 +240,7 @@ function setupRepairOrderFilters(): void {
 }
 
 function renderDashboard(): void {
+  if (!authenticated) return
   const cardsHtml = repairOrders.map(generateRepairOrderCardHtml).join('')
 
   appContainer.innerHTML = `
@@ -240,6 +251,8 @@ function renderDashboard(): void {
             <span class="workshop__mark" aria-hidden="true">HR</span>
             <span>Heater Repair Workshop</span>
           </div>
+          <button id="logout" type="button">Sign out</button>
+          <p id="logout-error" role="alert"></p>
           <time id="workshop-clock" class="workshop__clock"></time>
         </div>
         <div class="workshop__heading">
@@ -289,19 +302,90 @@ function renderDashboard(): void {
     </main>
   `
 
+  appContainer.querySelector<HTMLButtonElement>('#logout')!.addEventListener('click', async (event) => {
+    const button = event.currentTarget as HTMLButtonElement
+    button.disabled = true
+    try {
+      await logout()
+      showLogin()
+    } catch (error: unknown) {
+      if (error instanceof SessionExpiredError) return
+      button.disabled = false
+      const message = appContainer.querySelector<HTMLElement>('#logout-error')
+      if (message) message.textContent = 'Unable to complete the request.'
+    }
+  })
   startClock()
   setupRepairOrderForm(appContainer, addRepairOrder)
   setupRepairOrderFilters()
   setupRepairOrderActions()
 }
 
-async function initializeApplication(): Promise<void> {
-  showLoadingState()
+function showLogin(message = ''): void {
+  authenticated = false
+  viewGeneration++
+  repairOrders = []
+  if (clockIntervalId !== undefined) window.clearInterval(clockIntervalId)
+  clockIntervalId = undefined
+  appContainer.innerHTML = `
+    <main class="request-state auth-view">
+      <h1>Heater Repair Workshop</h1>
+      <form id="login-form" class="auth-form">
+        <label for="login-email">Email</label>
+        <input id="login-email" name="email" type="email" autocomplete="username" maxlength="254" required />
+        <label for="login-password">Password</label>
+        <input id="login-password" name="password" type="password" autocomplete="current-password" maxlength="1024" required />
+        <button type="submit">Sign in</button>
+        <p id="login-error" role="alert"></p>
+      </form>
+    </main>`
+  const form = appContainer.querySelector<HTMLFormElement>('#login-form')!
+  const errorElement = appContainer.querySelector<HTMLElement>('#login-error')!
+  errorElement.textContent = message
+  let submitting = false
+  form.addEventListener('submit', async (event) => {
+    event.preventDefault()
+    if (submitting) return
+    submitting = true
+    const button = form.querySelector<HTMLButtonElement>('button')!
+    const email = form.querySelector<HTMLInputElement>('#login-email')!
+    const password = form.querySelector<HTMLInputElement>('#login-password')!
+    button.disabled = true
+    button.textContent = 'Signing in…'
+    form.setAttribute('aria-busy', 'true')
+    errorElement.textContent = ''
+    try {
+      const pending = login(email.value.trim(), password.value)
+      password.value = ''
+      await pending
+      await initializeApplication()
+    } catch (error: unknown) {
+      errorElement.textContent = getErrorMessage(error)
+    } finally {
+      password.value = ''
+      submitting = false
+      button.disabled = false
+      button.textContent = 'Sign in'
+      form.removeAttribute('aria-busy')
+    }
+  })
+}
 
+setSessionExpiredHandler(() => showLogin(authenticated ? 'Your session has expired. Please sign in again.' : ''))
+
+async function initializeApplication(): Promise<void> {
+  const generation = ++viewGeneration
+  showLoadingState()
   try {
-    repairOrders = await loadRepairOrders()
+    await checkSession()
+    if (generation !== viewGeneration) return
+    authenticated = true
+    const orders = await loadRepairOrders()
+    if (generation !== viewGeneration || !authenticated) return
+    repairOrders = orders
     renderDashboard()
   } catch (error: unknown) {
+    if (error instanceof SessionExpiredError || generation !== viewGeneration) return
     showErrorState(error)
   }
 }
