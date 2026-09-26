@@ -1,7 +1,7 @@
 import './style.css'
 import { checkSession, login, logout } from './services/auth-service.ts'
 import { SessionExpiredError, setSessionExpiredHandler } from './services/api.ts'
-import masterTechnicianImage from './assets/master-technician-v3.png'
+import { generateApplicationShellHtml, updateShellDestination } from './components/application-shell.ts'
 import { generateRepairOrderCardHtml } from './components/repair-order-card.ts'
 import {
   generateRepairOrderFormHtml,
@@ -42,20 +42,20 @@ function getErrorMessage(error: unknown): string {
 }
 
 function showLoadingState(): void {
-  appContainer.innerHTML = `
-    <main class="request-state" aria-live="polite" aria-busy="true">
+  renderApplicationContent(`
+    <${authenticated ? 'div' : 'main'} class="request-state" aria-live="polite" aria-busy="true">
       <span class="request-state__spinner" aria-hidden="true"></span>
       <div>
         <p>Workshop API</p>
         <h1>Loading workshop…</h1>
       </div>
-    </main>
-  `
+    </${authenticated ? 'div' : 'main'}>
+  `)
 }
 
 function showErrorState(error: unknown): void {
-  appContainer.innerHTML = `
-    <main class="request-state request-state--error" role="alert">
+  renderApplicationContent(`
+    <${authenticated ? 'div' : 'main'} class="request-state request-state--error" role="alert">
       <span class="request-state__mark" aria-hidden="true">!</span>
       <div>
         <p>Loading error</p>
@@ -63,8 +63,8 @@ function showErrorState(error: unknown): void {
         <p id="load-error-message" class="request-state__message"></p>
         <button id="retry-load" type="button">Try again</button>
       </div>
-    </main>
-  `
+    </${authenticated ? 'div' : 'main'}>
+  `)
 
   const message = appContainer.querySelector<HTMLParagraphElement>(
     '#load-error-message',
@@ -132,7 +132,7 @@ async function addRepairOrder(payload: RepairOrderFormPayload): Promise<void> {
     const createdOrder = await createRepairOrder(payload)
     if (!authenticated || generation !== viewGeneration) return
     repairOrders = [...repairOrders, createdOrder]
-    renderDashboard()
+    renderWorkshop()
   } catch (error: unknown) {
     throw new Error(getErrorMessage(error))
   }
@@ -143,7 +143,7 @@ function replaceRepairOrder(updatedOrder: RepairOrder): void {
   repairOrders = repairOrders.map((order) =>
     order.id === updatedOrder.id ? updatedOrder : order,
   )
-  renderDashboard()
+  renderWorkshop()
 }
 
 function setupRepairOrderActions(): void {
@@ -239,55 +239,25 @@ function setupRepairOrderFilters(): void {
   })
 }
 
-function renderDashboard(): void {
+function renderWorkshop(): void {
   if (!authenticated) return
   const cardsHtml = repairOrders.map(generateRepairOrderCardHtml).join('')
 
-  appContainer.innerHTML = `
-    <main class="workshop">
-      <header class="workshop__header">
-        <div class="workshop__identity">
-          <div class="workshop__name">
-            <span class="workshop__mark" aria-hidden="true">HR</span>
-            <span>Heater Repair Workshop</span>
-          </div>
-          <button id="logout" type="button">Sign out</button>
-          <p id="logout-error" role="alert"></p>
-          <time id="workshop-clock" class="workshop__clock"></time>
-        </div>
-        <div class="workshop__heading">
-          <div>
-            <p class="workshop__eyebrow">
-              <span class="workshop__business-name">Taller Fuego Sur</span>
-              <span aria-hidden="true">·</span>
-              <span>Workshop overview</span>
-            </p>
-            <h1 id="workshop-greeting"></h1>
-            <p class="workshop__subtitle">Here is the current repair workload.</p>
-          </div>
-          <div class="hero-scene" aria-hidden="true">
-            <img class="master-technician" src="${masterTechnicianImage}" alt="" />
-            <div class="heater-visual">
-              <span class="heat-wave heat-wave--one"></span>
-              <span class="heat-wave heat-wave--two"></span>
-              <span class="heat-wave heat-wave--three"></span>
-              <div class="heater-visual__unit">
-                <span class="heater-visual__vent"></span>
-                <span class="heater-visual__brand-light"></span>
-                <span class="heater-visual__front-line"></span>
-                <div class="heater-visual__display">
-                  <span>48</span>
-                  <small>°</small>
-                </div>
-                <div class="heater-visual__connections">
-                  <span></span><span></span><span></span>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
+  renderApplicationContent(`
+    <section data-destination="dashboard" aria-labelledby="dashboard-title">
+      <header class="app-shell__page-header">
+        <h1 id="dashboard-title" tabindex="-1">Dashboard</h1>
+        <p id="workshop-greeting"></p>
+        <p class="workshop__eyebrow">Taller Fuego Sur · Workshop overview</p>
+        <p>Here is the current repair workload.</p>
+        <time id="workshop-clock" class="workshop__clock"></time>
       </header>
       ${generateWorkshopMonitorHtml(repairOrders)}
+    </section>
+    <section data-destination="repairs" aria-labelledby="repairs-title" hidden>
+      <header class="app-shell__page-header">
+        <h1 id="repairs-title" tabindex="-1">Repairs</h1>
+      </header>
       ${generateRepairOrderFormHtml()}
       <nav class="repair-filters" aria-label="Repair order status filters">
         ${generateRepairOrderFiltersHtml(repairOrders)}
@@ -299,9 +269,25 @@ function renderDashboard(): void {
       <section id="repair-order-list" class="repair-list" aria-label="Repair orders">
         ${cardsHtml}
       </section>
-    </main>
-  `
+    </section>
+  `)
+  startClock()
+  setupRepairOrderForm(appContainer, addRepairOrder)
+  setupRepairOrderFilters()
+  setupRepairOrderActions()
+}
 
+// Keep request feedback inside the authenticated shell, including Sign out.
+function renderApplicationContent(content: string): void {
+  if (!authenticated) {
+    appContainer.innerHTML = content
+    return
+  }
+  appContainer.innerHTML = generateApplicationShellHtml(content)
+  updateShellDestination(appContainer)
+  appContainer.querySelector('.app-shell__skip')!.addEventListener('click', () => {
+    appContainer.querySelector<HTMLElement>('#main-content')!.focus()
+  })
   appContainer.querySelector<HTMLButtonElement>('#logout')!.addEventListener('click', async (event) => {
     const button = event.currentTarget as HTMLButtonElement
     button.disabled = true
@@ -315,11 +301,11 @@ function renderDashboard(): void {
       if (message) message.textContent = 'Unable to complete the request.'
     }
   })
-  startClock()
-  setupRepairOrderForm(appContainer, addRepairOrder)
-  setupRepairOrderFilters()
-  setupRepairOrderActions()
 }
+
+window.addEventListener('hashchange', () => {
+  if (authenticated) updateShellDestination(appContainer, true)
+})
 
 function showLogin(message = ''): void {
   authenticated = false
@@ -380,10 +366,11 @@ async function initializeApplication(): Promise<void> {
     await checkSession()
     if (generation !== viewGeneration) return
     authenticated = true
+    showLoadingState()
     const orders = await loadRepairOrders()
     if (generation !== viewGeneration || !authenticated) return
     repairOrders = orders
-    renderDashboard()
+    renderWorkshop()
   } catch (error: unknown) {
     if (error instanceof SessionExpiredError || generation !== viewGeneration) return
     showErrorState(error)

@@ -8,6 +8,8 @@ const json = (body: unknown, status = 200) => new Response(JSON.stringify(body),
 
 beforeEach(() => {
   vi.resetModules()
+  vi.spyOn(window, 'addEventListener')
+  window.history.replaceState(null, '', '/')
   authenticated = false
   requests = []
   document.body.innerHTML = '<div id="app"></div>'
@@ -36,7 +38,12 @@ beforeEach(() => {
   // Avoid leaving dashboard clock intervals active across module reloads.
   vi.spyOn(window, 'setInterval').mockReturnValue(1)
 })
-afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals() })
+afterEach(() => {
+  for (const [type, listener] of vi.mocked(window.addEventListener).mock.calls) {
+    if (type === 'hashchange') window.removeEventListener(type, listener)
+  }
+  vi.restoreAllMocks(); vi.unstubAllGlobals()
+})
 
 async function startup() { await import('../src/main.ts') }
 async function submit(password = 'test-password') {
@@ -45,7 +52,7 @@ async function submit(password = 'test-password') {
   document.querySelector<HTMLFormElement>('#login-form')!.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }))
 }
 async function waitLogin() { await vi.waitFor(() => expect(document.querySelector('#login-form')).not.toBeNull()) }
-async function waitDashboard() { await vi.waitFor(() => expect(document.querySelector('.workshop')).not.toBeNull()) }
+async function waitDashboard() { await vi.waitFor(() => expect(document.querySelector('#monitor-title')).not.toBeNull()) }
 
 describe('AUTH-01 browser flow', () => {
   it('checks session before orders, renders login on 401 and stores no credentials', async () => {
@@ -99,6 +106,8 @@ describe('AUTH-01 browser flow', () => {
   it('ignores a late mutation response after logout and a new login', async () => {
     authenticated = true
     await startup(); await waitDashboard()
+    document.querySelector<HTMLAnchorElement>('a[href="#repairs"]')!.click()
+    await vi.waitFor(() => expect(document.querySelector<HTMLElement>('[data-destination="repairs"]')!.hidden).toBe(false))
     const original = fetchMock.getMockImplementation()!
     let complete: ((response: Response) => void) | undefined
     fetchMock.mockImplementation((url: string, init: RequestInit) => {

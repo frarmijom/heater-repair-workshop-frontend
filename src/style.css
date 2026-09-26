@@ -1262,3 +1262,101 @@ body::before {
 .auth-form input { width: 100%; box-sizing: border-box; padding: 0.8rem; border: 1px solid #718096; border-radius: 0.4rem; font: inherit; }
 .auth-form button { padding: 0.8rem; cursor: pointer; }
 .auth-form button:disabled { cursor: wait; opacity: 0.65; }
+
+/* Authenticated operational shell; existing content components retain their styling. */
+.app-shell {
+  min-height: 100vh;
+  display: grid;
+  grid-template-columns: 12rem minmax(0, 1fr);
+  grid-template-rows: auto 1fr;
+  background: #f5f4f1;
+}
+
+.app-shell__header {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1rem 1.5rem;
+  border-bottom: 1px solid var(--line);
+  background: var(--paper);
+}
+
+.app-shell__brand { font-weight: 750; overflow-wrap: anywhere; }
+.app-shell__session { min-width: 0; }
+.app-shell__session p { margin: 0; overflow-wrap: anywhere; }
+.app-shell__session p:empty { display: none; }
+.app-shell__session button {
+  min-height: 44px;
+  padding: 0.5rem 1rem;
+  border: 1px solid var(--ink);
+  border-radius: 6px;
+  background: var(--paper);
+  color: var(--ink);
+  font: inherit;
+  cursor: pointer;
+}
+.app-shell__session button:disabled { opacity: 0.65; cursor: wait; }
+
+.app-shell__nav {
+  padding: 1rem 0.75rem;
+  border-right: 1px solid var(--line);
+  background: var(--paper);
+}
+.app-shell__nav a {
+  display: block;
+  min-height: 44px;
+  padding: 0.75rem;
+  border-left: 4px solid transparent;
+  color: var(--ink);
+  text-decoration: none;
+}
+.app-shell__nav a[aria-current='page'] {
+  border-left-color: var(--accent-dark);
+  background: #eee9e1;
+  font-weight: 750;
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+.app-shell :focus-visible {
+  outline: 3px solid var(--accent-dark);
+  outline-offset: 3px;
+}
+.app-shell__skip {
+  position: absolute;
+  top: 0.5rem;
+  left: 0.5rem;
+  z-index: 10;
+  padding: 0.75rem;
+  color: var(--ink);
+  background: var(--paper);
+  transform: translateY(-200%);
+}
+.app-shell__skip:focus { transform: none; }
+
+.app-shell__main {
+  min-width: 0;
+  width: 100%;
+  max-width: 1200px;
+  padding: 2rem;
+  overflow-wrap: anywhere;
+}
+.app-shell__page-header { margin-bottom: 2rem; }
+.app-shell__page-header h1 { margin: 0 0 1rem; font-size: 2rem; }
+.app-shell__main .request-state { width: 100%; min-height: 16rem; }
+.app-shell__main .request-state h1 { font-size: 2rem; }
+
+@media (max-width: 1000px) {
+  .app-shell { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto auto 1fr; }
+  .app-shell__nav { display: flex; flex-wrap: wrap; gap: 0.5rem; border-right: 0; border-bottom: 1px solid var(--line); }
+  .app-shell__main { padding: 1.5rem; }
+}
+
+@media (max-width: 700px) {
+  .app-shell__header { padding: 1rem; }
+  .app-shell__main { padding: 1rem; }
+  .app-shell__main .repair-card__dates { flex-wrap: wrap; gap: 1rem; }
+  .app-shell__main .request-state { flex-wrap: wrap; }
+}
