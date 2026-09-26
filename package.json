@@ -7,10 +7,13 @@
     "dev": "vite",
     "build": "tsc && vite build",
     "deploy": "npm run build && npx wrangler@4.129.0 deploy",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test": "vitest run"
   },
   "devDependencies": {
+    "jsdom": "26.1.0",
     "typescript": "~6.0.2",
-    "vite": "^8.2.0"
+    "vite": "^8.2.0",
+    "vitest": "4.1.11"
   }
 }
