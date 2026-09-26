@@ -84,10 +84,9 @@ function showErrorState(error: unknown): void {
 
 function startClock(): void {
   const clock = appContainer.querySelector<HTMLTimeElement>('#workshop-clock')
-  const greeting = appContainer.querySelector<HTMLHeadingElement>('#workshop-greeting')
 
-  if (clock === null || greeting === null) {
-    throw new Error('The workshop clock or greeting element was not found.')
+  if (clock === null) {
+    throw new Error('The workshop clock element was not found.')
   }
 
   const dateFormatter = new Intl.DateTimeFormat(undefined, { dateStyle: 'full' })
@@ -99,16 +98,8 @@ function startClock(): void {
 
   const updateClock = (): void => {
     const now = new Date()
-    const hour = now.getHours()
     clock.dateTime = now.toISOString()
     clock.replaceChildren()
-
-    greeting.textContent =
-      hour < 12
-        ? 'Good morning.'
-        : hour < 18
-          ? 'Good afternoon.'
-          : 'Good evening.'
 
     const date = document.createElement('span')
     date.textContent = dateFormatter.format(now)
@@ -247,9 +238,7 @@ function renderWorkshop(): void {
     <section data-destination="dashboard" aria-labelledby="dashboard-title">
       <header class="app-shell__page-header">
         <h1 id="dashboard-title" tabindex="-1">Dashboard</h1>
-        <p id="workshop-greeting"></p>
-        <p class="workshop__eyebrow">Taller Fuego Sur · Workshop overview</p>
-        <p>Here is the current repair workload.</p>
+        <p>Taller Fuego Sur</p>
         <time id="workshop-clock" class="workshop__clock"></time>
       </header>
       ${generateWorkshopMonitorHtml(repairOrders)}

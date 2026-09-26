@@ -50,22 +50,19 @@ describe('canonical repair status presentation', () => {
     expect(filter.querySelector('strong')!.textContent).toBe('1')
     expect(isRepairOrderFilter(status)).toBe(true)
 
-    const monitor = render(generateWorkshopMonitorHtml([order(status)]))
-    const metric = monitor.querySelector(`.monitor-card--${modifier}`)!
-    expect(metric.querySelector('span:last-child')!.textContent).toBe(label)
-    expect(metric.querySelector('strong')!.textContent).toBe('1')
-    expect(monitor.querySelector('[role="img"]')!.getAttribute('aria-label')).toContain(`1 ${label}`)
-    expect(monitor.querySelector<HTMLElement>(`.monitor__segment--${modifier}`)!.style.width).toBe('100%')
+    const overview = render(generateWorkshopMonitorHtml([order(status)]))
+    const metric = overview.querySelector(`.dashboard-metric--${modifier}`)!
+    expect(metric.querySelector('dt')!.textContent).toBe(label)
+    expect(metric.querySelector('dd')!.textContent).toBe('1')
   })
 
-  it('preserves the All filter, counts and zero-order monitor', () => {
+  it('preserves the All filter, counts and zero-order overview', () => {
     const orders = cases.map(({ status }) => order(status))
     const filters = render(generateRepairOrderFiltersHtml(orders))
     expect(filters.querySelector('[data-repair-status="all"] strong')!.textContent).toBe('3')
     expect(filters.querySelector('[data-repair-status="all"]')!.getAttribute('aria-pressed')).toBe('true')
-    const monitor = render(generateWorkshopMonitorHtml([]))
-    expect([...monitor.querySelectorAll('strong')].map(node => node.textContent)).toEqual(['0', '0', '0', '0'])
-    expect([...monitor.querySelectorAll<HTMLElement>('.monitor__segment')].every(node => node.style.width === '0%')).toBe(true)
+    const overview = render(generateWorkshopMonitorHtml([]))
+    expect([...overview.querySelectorAll('dd, .dashboard-summary__total strong')].map(node => node.textContent)).toEqual(['0', '0', '0', '0'])
   })
 })
 

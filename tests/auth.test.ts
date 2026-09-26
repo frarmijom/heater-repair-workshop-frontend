@@ -52,7 +52,7 @@ async function submit(password = 'test-password') {
   document.querySelector<HTMLFormElement>('#login-form')!.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }))
 }
 async function waitLogin() { await vi.waitFor(() => expect(document.querySelector('#login-form')).not.toBeNull()) }
-async function waitDashboard() { await vi.waitFor(() => expect(document.querySelector('#monitor-title')).not.toBeNull()) }
+async function waitDashboard() { await vi.waitFor(() => expect(document.querySelector('#workload-title')).not.toBeNull()) }
 
 describe('AUTH-01 browser flow', () => {
   it('checks session before orders, renders login on 401 and stores no credentials', async () => {
