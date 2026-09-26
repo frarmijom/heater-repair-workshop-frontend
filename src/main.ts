@@ -1,7 +1,8 @@
 import './style.css'
 import { checkSession, login, logout } from './services/auth-service.ts'
 import { SessionExpiredError, setSessionExpiredHandler } from './services/api.ts'
-import { generateApplicationShellHtml, updateShellDestination } from './components/application-shell.ts'
+import { generateApplicationShellHtml, updateShellDestination, selectedRepairId } from './components/application-shell.ts'
+import { generateRepairDetailHtml } from './components/repair-detail.ts'
 import { generateRepairOrderCardHtml } from './components/repair-order-card.ts'
 import {
   generateRepairOrderFormHtml,
@@ -23,6 +24,8 @@ import {
 } from './services/repair-order-service.ts'
 
 let repairOrders: RepairOrder[] = []
+let selectedFilter: RepairOrderFilter = 'all'
+let renderedDetailOrder: RepairOrder | undefined
 let authenticated = false
 let viewGeneration = 0
 let clockIntervalId: number | undefined
@@ -168,20 +171,12 @@ function setupRepairOrderActions(): void {
 
       try {
         if (action === 'start') {
-          const diagnosis = window.prompt('Enter the repair diagnosis:')?.trim()
-          if (diagnosis === undefined) {
-            target.disabled = false
-            return
-          }
-          if (diagnosis.length === 0) {
-            throw new Error('A diagnosis is required to start the repair.')
-          }
-          const updated = await startRepairOrder(orderId, diagnosis)
-          if (generation === viewGeneration) replaceRepairOrder(updated)
-        } else {
-          const updated = await completeRepairOrder(orderId)
-          if (generation === viewGeneration) replaceRepairOrder(updated)
+          target.disabled = false
+          window.location.hash = `#repairs/${encodeURIComponent(orderId)}`
+          return
         }
+        const updated = await completeRepairOrder(orderId)
+        if (generation === viewGeneration) replaceRepairOrder(updated)
       } catch (error: unknown) {
         target.disabled = false
         if (errorElement !== undefined && errorElement !== null) {
@@ -207,6 +202,7 @@ function setupRepairOrderFilters(): void {
   }
 
   const renderFilteredOrders = (filter: RepairOrderFilter): void => {
+    selectedFilter = filter
     const visibleOrders = repairOrders.filter(
       ({ status }) => filter === 'all' || status === filter,
     )
@@ -225,7 +221,7 @@ function setupRepairOrderFilters(): void {
     })
   }
 
-  renderFilteredOrders('all')
+  renderFilteredOrders(selectedFilter)
 
   filterButtons.forEach((button) => {
     button.addEventListener('click', () => {
@@ -266,6 +262,7 @@ function renderWorkshop(): void {
         <div id="repair-order-list" class="repair-list"></div>
       </section>
     </section>
+    <section class="repair-detail" data-destination="repair-detail" aria-labelledby="repair-detail-title" hidden></section>
   `)
   startClock()
   setupRepairOrderForm(appContainer, addRepairOrder)
@@ -280,6 +277,8 @@ function renderApplicationContent(content: string): void {
     return
   }
   appContainer.innerHTML = generateApplicationShellHtml(content)
+  renderedDetailOrder = undefined
+  updateRepairDetail()
   updateShellDestination(appContainer)
   appContainer.querySelector('.app-shell__skip')!.addEventListener('click', () => {
     appContainer.querySelector<HTMLElement>('#main-content')!.focus()
@@ -300,13 +299,67 @@ function renderApplicationContent(content: string): void {
 }
 
 window.addEventListener('hashchange', () => {
-  if (authenticated) updateShellDestination(appContainer, true)
+  if (authenticated) {
+    updateRepairDetail()
+    updateShellDestination(appContainer, true)
+  }
 })
+
+function updateRepairDetail(): void {
+  const container = appContainer.querySelector<HTMLElement>('[data-destination="repair-detail"]')
+  const id = selectedRepairId()
+  if (!container || id === null) return
+  const order = repairOrders.find(repair => repair.id === id)
+  if (order && renderedDetailOrder === order && container.childElementCount > 0) return
+  renderedDetailOrder = order
+  container.innerHTML = generateRepairDetailHtml(order)
+  if (!order) return
+  const form = container.querySelector<HTMLFormElement>('#diagnosis-form')
+  const input = container.querySelector<HTMLTextAreaElement>('#repair-diagnosis')
+  const button = container.querySelector<HTMLButtonElement>('button[data-repair-action]')
+  const errorElement = container.querySelector<HTMLElement>('#detail-action-error')
+  if (!button || !errorElement) return
+  const generation = viewGeneration
+  let pending = false
+  const execute = async (): Promise<void> => {
+    if (pending) return
+    const diagnosis = input?.value.trim()
+    errorElement.textContent = ''
+    if (input) {
+      input.setAttribute('aria-invalid', String(!diagnosis))
+      if (!diagnosis) {
+        errorElement.textContent = 'A diagnosis is required to start the repair.'
+        input.focus()
+        return
+      }
+    }
+    pending = true
+    button.disabled = true
+    form?.setAttribute('aria-busy', 'true')
+    try {
+      const updated = input ? await startRepairOrder(order.id, diagnosis!) : await completeRepairOrder(order.id)
+      if (!authenticated || generation !== viewGeneration) return
+      replaceRepairOrder(updated)
+      if (selectedRepairId() === order.id) appContainer.querySelector<HTMLElement>('#repair-detail-title')?.focus()
+    } catch (error: unknown) {
+      if (generation !== viewGeneration) return
+      errorElement.textContent = getErrorMessage(error)
+    } finally {
+      pending = false
+      button.disabled = false
+      form?.removeAttribute('aria-busy')
+    }
+  }
+  if (form) form.addEventListener('submit', event => { event.preventDefault(); void execute() })
+  else button.addEventListener('click', () => { void execute() })
+}
 
 function showLogin(message = ''): void {
   authenticated = false
   viewGeneration++
   repairOrders = []
+  selectedFilter = 'all'
+  renderedDetailOrder = undefined
   if (clockIntervalId !== undefined) window.clearInterval(clockIntervalId)
   clockIntervalId = undefined
   appContainer.innerHTML = `

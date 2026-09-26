@@ -20,13 +20,20 @@ export function generateApplicationShellHtml(content: string): string {
   `
 }
 
+export function selectedRepairId(): string | null {
+  const match = /^#repairs\/([^/]+)$/.exec(window.location.hash)
+  if (!match) return null
+  try { return decodeURIComponent(match[1]) } catch { return null }
+}
+
 export function updateShellDestination(root: HTMLElement, focusHeading = false): void {
-  const destination = window.location.hash === '#repairs' ? 'repairs' : 'dashboard'
-  if (window.location.hash !== `#${destination}`) {
+  const detail = selectedRepairId() !== null
+  const destination = detail ? 'repair-detail' : window.location.hash === '#repairs' ? 'repairs' : 'dashboard'
+  if (!detail && window.location.hash !== `#${destination}`) {
     window.history.replaceState(null, '', `#${destination}`)
   }
   root.querySelectorAll<HTMLAnchorElement>('.app-shell__nav a').forEach(link => {
-    if (link.hash === `#${destination}`) link.setAttribute('aria-current', 'page')
+    if (link.hash === `#${detail ? 'repairs' : destination}`) link.setAttribute('aria-current', 'page')
     else link.removeAttribute('aria-current')
   })
   root.querySelectorAll<HTMLElement>('[data-destination]').forEach(panel => {

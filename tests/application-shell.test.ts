@@ -113,7 +113,7 @@ describe('authenticated application shell', () => {
     expect(skip.type).toBe('button')
     expect(skip.tabIndex).toBe(0)
     expect(skip.hasAttribute('href')).toBe(false)
-    expect(Array.from(document.querySelectorAll<HTMLAnchorElement>('a[href^="#"]'), link => link.hash))
+    expect(Array.from(document.querySelectorAll<HTMLAnchorElement>('.app-shell__nav a'), link => link.hash))
       .toEqual(['#dashboard', '#repairs'])
     const historyLength = history.length
     skip.focus()
@@ -143,8 +143,12 @@ describe('authenticated application shell', () => {
     expect(document.querySelector('.dashboard-summary__total strong')?.textContent).toBe('2')
     expect(document.querySelector('.dashboard-metric--received dd')?.textContent).toBe('2')
     await navigate('repairs')
-    vi.spyOn(window, 'prompt').mockReturnValue('Replace valve')
+    const prompt = vi.spyOn(window, 'prompt')
     document.querySelector<HTMLButtonElement>('[data-repair-order-id="order-1"][data-repair-action="start"]')!.click()
+    await vi.waitFor(() => expect(document.querySelector('#diagnosis-form')).not.toBeNull())
+    document.querySelector<HTMLTextAreaElement>('#repair-diagnosis')!.value = 'Replace valve'
+    document.querySelector('#diagnosis-form')!.dispatchEvent(new Event('submit', { cancelable: true }))
+    expect(prompt).not.toHaveBeenCalled()
     await vi.waitFor(() => expect(document.querySelector('[data-repair-order-id="order-1"][data-repair-action="complete"]')).not.toBeNull())
     await navigate('dashboard')
     expect(document.querySelector('.dashboard-metric--received dd')?.textContent).toBe('1')
@@ -231,15 +235,108 @@ describe('authenticated application shell', () => {
 
   it('retains inline action errors and allows retrying the current action', async () => {
     await startup('#repairs')
-    vi.spyOn(window, 'prompt').mockReturnValue('Replace valve')
+    const prompt = vi.spyOn(window, 'prompt')
     const original = fetchMock.getMockImplementation()!
     fetchMock.mockImplementation((url: string, init: RequestInit) => url.endsWith('/start')
       ? Promise.resolve(json({}, 500)) : original(url, init))
-    const button = document.querySelector<HTMLButtonElement>('[data-repair-action="start"]')!
+    document.querySelector<HTMLButtonElement>('[data-repair-action="start"]')!.click()
+    await vi.waitFor(() => expect(document.querySelector('#diagnosis-form')).not.toBeNull())
+    document.querySelector<HTMLTextAreaElement>('#repair-diagnosis')!.value = 'Replace valve'
+    const button = document.querySelector<HTMLButtonElement>('#diagnosis-form button')!
     button.click()
-    await vi.waitFor(() => expect(document.querySelector('.repair-card__action-error')?.textContent).toBe('Unable to complete the request.'))
+    expect(prompt).not.toHaveBeenCalled()
+    await vi.waitFor(() => expect(document.querySelector('#detail-action-error')?.textContent).toBe('Unable to complete the request.'))
     expect(button.disabled).toBe(false)
     expect(document.querySelector('.repair-card--received')).not.toBeNull()
+  })
+
+
+  it('opens detail with a native link, preserves the filter and supports Back/Forward', async () => {
+    await startup('#repairs')
+    document.querySelector<HTMLButtonElement>('[data-repair-status="RECEIVED"]')!.click()
+    const requestCount = fetchMock.mock.calls.length
+    document.querySelector<HTMLAnchorElement>('.repair-detail-link')!.click()
+    await vi.waitFor(() => expect(panel('repair-detail').hidden).toBe(false))
+    expect(location.hash).toBe('#repairs/order-1')
+    expect(active()).toBe('Repairs')
+    expect(document.activeElement?.id).toBe('repair-detail-title')
+    history.back()
+    await vi.waitFor(() => expect(panel('repairs').hidden).toBe(false))
+    history.forward()
+    await vi.waitFor(() => expect(panel('repair-detail').hidden).toBe(false))
+    document.querySelector<HTMLAnchorElement>('.repair-detail > a')!.click()
+    await vi.waitFor(() => expect(panel('repairs').hidden).toBe(false))
+    expect(document.querySelector('[data-repair-status="RECEIVED"]')?.getAttribute('aria-pressed')).toBe('true')
+    expect(fetchMock.mock.calls).toHaveLength(requestCount)
+  })
+
+  it('loads a direct detail URL and fails safely for missing or malformed IDs', async () => {
+    await startup('#repairs/order-1')
+    expect(panel('repair-detail').hidden).toBe(false)
+    expect(document.querySelector('#repair-detail-title')?.textContent).toContain('order-1')
+    location.hash = '#repairs/missing'
+    await vi.waitFor(() => expect(document.querySelector('#repair-detail-title')?.textContent).toBe('Repair not found'))
+    expect(document.querySelector('#diagnosis-form')).toBeNull()
+    location.hash = '#repairs/%E0%A4%A'
+    await vi.waitFor(() => expect(location.hash).toBe('#dashboard'))
+    expect(panel('dashboard').hidden).toBe(false)
+  })
+
+  it('validates diagnosis inline and synchronizes both detail transitions with queue and Dashboard', async () => {
+    await startup('#repairs')
+    document.querySelector<HTMLButtonElement>('[data-repair-status="RECEIVED"]')!.click()
+    document.querySelector<HTMLAnchorElement>('.repair-detail-link')!.click()
+    await vi.waitFor(() => expect(document.querySelector('#diagnosis-form')).not.toBeNull())
+    const prompt = vi.spyOn(window, 'prompt')
+    const alert = vi.spyOn(window, 'alert')
+    const input = document.querySelector<HTMLTextAreaElement>('#repair-diagnosis')!
+    input.value = '   '
+    document.querySelector<HTMLButtonElement>('#diagnosis-form button')!.click()
+    expect(input.getAttribute('aria-invalid')).toBe('true')
+    expect(document.querySelector('#detail-action-error')?.textContent).toContain('A diagnosis is required')
+    expect(fetchMock.mock.calls.some(([url]) => url.endsWith('/start'))).toBe(false)
+    input.value = '  Replace valve  '
+    const form = document.querySelector<HTMLFormElement>('#diagnosis-form')!
+    form.dispatchEvent(new Event('submit', { cancelable: true }))
+    form.dispatchEvent(new Event('submit', { cancelable: true }))
+    expect(form.querySelector<HTMLButtonElement>('button')!.disabled).toBe(true)
+    await vi.waitFor(() => expect(document.querySelector('#detail-complete')).not.toBeNull())
+    expect(fetchMock.mock.calls.filter(([url]) => url.endsWith('/start'))).toHaveLength(1)
+    expect(fetchMock.mock.calls.find(([url]) => url.endsWith('/start'))?.[1].body).toBe(JSON.stringify({ diagnosis: 'Replace valve' }))
+    expect(panel('repair-detail').textContent).toContain('Replace valve')
+    expect(panel('repair-detail').querySelector('[aria-current="step"]')?.getAttribute('data-stage')).toBe('IN_PROGRESS')
+    expect(document.querySelector('.dashboard-metric--in-progress dd')?.textContent).toBe('1')
+    expect(document.querySelector('[data-repair-status="IN_PROGRESS"] strong')?.textContent).toBe('1')
+    expect(document.querySelector('[data-repair-status="RECEIVED"]')?.getAttribute('aria-pressed')).toBe('true')
+    const button = document.querySelector<HTMLButtonElement>('#detail-complete')!
+    button.click()
+    button.click()
+    await vi.waitFor(() => expect(panel('repair-detail').querySelector('[aria-current="step"]')?.getAttribute('data-stage')).toBe('COMPLETED'))
+    expect(fetchMock.mock.calls.filter(([url]) => url.endsWith('/complete'))).toHaveLength(1)
+    const { formatRepairDate } = await import('../src/formatters/repair-time.ts')
+    expect(panel('repair-detail').querySelector('[data-stage="COMPLETED"] small')?.textContent).toBe(formatRepairDate('2026-09-26T13:00:00Z'))
+    expect(panel('repair-detail').querySelector('button')).toBeNull()
+    expect(document.querySelector('.dashboard-metric--completed dd')?.textContent).toBe('1')
+    expect(document.querySelector('[data-repair-status="COMPLETED"] strong')?.textContent).toBe('1')
+    expect(prompt).not.toHaveBeenCalled()
+    expect(alert).not.toHaveBeenCalled()
+  })
+
+  it('ignores a late detail mutation after logout', async () => {
+    await startup('#repairs/order-1')
+    const original = fetchMock.getMockImplementation()!
+    let resolveStart: ((value: Response) => void) | undefined
+    fetchMock.mockImplementation((url: string, init: RequestInit) => url.endsWith('/start')
+      ? new Promise<Response>(resolve => { resolveStart = resolve }) : original(url, init))
+    document.querySelector<HTMLTextAreaElement>('#repair-diagnosis')!.value = 'Replace valve'
+    document.querySelector<HTMLButtonElement>('#diagnosis-form button')!.click()
+    await vi.waitFor(() => expect(resolveStart).toBeDefined())
+    document.querySelector<HTMLButtonElement>('#logout')!.click()
+    await vi.waitFor(() => expect(document.querySelector('#login-form')).not.toBeNull())
+    resolveStart!(json({ ...order, status: 'IN_PROGRESS', diagnosis: 'Replace valve' }))
+    await new Promise(resolve => setTimeout(resolve, 0))
+    expect(document.querySelector('.app-shell')).toBeNull()
+    expect(document.querySelector('#login-form')).not.toBeNull()
   })
 
 })

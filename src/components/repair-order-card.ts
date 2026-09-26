@@ -4,7 +4,7 @@ import type { RepairOrder } from '../models/index.ts'
 import { repairStatusPresentation } from './repair-status.ts'
 import { formatRepairDate, formatRepairDateTime } from '../formatters/repair-time.ts'
 
-function escapeHtml(value: string): string {
+export function escapeHtml(value: string): string {
   return value
     .replaceAll('&', '&amp;')
     .replaceAll('<', '&lt;')
@@ -57,6 +57,7 @@ export function generateRepairOrderCardHtml(order: RepairOrder): string {
       </dl>
       <div class="repair-card__actions">
         ${actionHtml}
+        <a class="repair-detail-link" href="#repairs/${escapeHtml(encodeURIComponent(order.id))}">View detail</a>
         <p class="repair-card__action-error" role="alert"></p>
       </div>
       <div class="repair-card__notes">

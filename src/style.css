@@ -845,3 +845,32 @@ body::before {
   .app-shell__main { padding: 1rem; }
   .app-shell__main .request-state { flex-wrap: wrap; }
 }
+
+.repair-detail-link { display: inline-block; padding: 0.75rem 0; color: var(--accent-dark); }
+.repair-detail { overflow-wrap: anywhere; }
+.repair-detail > a { display: inline-block; min-height: 44px; color: var(--accent-dark); }
+.repair-detail h1 { margin-top: 1rem; }
+.repair-detail h2 { font-size: 1.25rem; }
+.repair-detail > section { margin-top: 2rem; }
+.repair-lifecycle {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1rem;
+  padding: 0;
+  list-style-position: inside;
+}
+.repair-lifecycle li { padding: 1rem; border: 1px solid var(--line); background: var(--paper); }
+.repair-lifecycle li[aria-current='step'] { border: 2px solid var(--ink); }
+.repair-lifecycle span, .repair-lifecycle small { display: block; margin-top: 0.5rem; }
+.repair-lifecycle li[aria-current='step'] span { font-weight: 700; text-decoration: underline; }
+.repair-detail__information { display: grid; gap: 1rem; }
+.repair-detail__information dt { font-weight: 650; }
+.repair-detail__information dd { margin: 0.35rem 0 0; white-space: pre-wrap; }
+.repair-detail form { display: grid; gap: 0.75rem; max-width: 42rem; }
+.repair-detail textarea { width: 100%; min-height: 7rem; padding: 0.75rem; font: inherit; border: 1px solid var(--muted); border-radius: 6px; resize: vertical; }
+.repair-detail button { min-height: 44px; width: fit-content; padding: 0.5rem 1rem; border: 0; border-radius: 6px; font: inherit; color: #fff; background: var(--ink); cursor: pointer; }
+.repair-detail button:disabled { opacity: 0.65; cursor: wait; }
+#detail-action-error { color: var(--accent-dark); }
+@media (max-width: 600px) {
+  .repair-lifecycle { grid-template-columns: minmax(0, 1fr); }
+}
