@@ -1,5 +1,6 @@
 import { RepairStatus } from '../models/index.ts'
 import type { RepairOrder } from '../models/index.ts'
+import { repairStatusPresentation } from './repair-status.ts'
 
 interface MonitorMetric {
   label: string
@@ -28,19 +29,19 @@ export function generateWorkshopMonitorHtml(
       modifier: 'total',
     },
     {
-      label: 'Received',
+      label: repairStatusPresentation[RepairStatus.RECEIVED].label,
       value: received,
-      modifier: 'received',
+      modifier: repairStatusPresentation[RepairStatus.RECEIVED].modifier,
     },
     {
-      label: 'In repair',
+      label: repairStatusPresentation[RepairStatus.IN_PROGRESS].label,
       value: inRepair,
-      modifier: 'in-repair',
+      modifier: repairStatusPresentation[RepairStatus.IN_PROGRESS].modifier,
     },
     {
-      label: 'Completed',
+      label: repairStatusPresentation[RepairStatus.COMPLETED].label,
       value: completed,
-      modifier: 'completed',
+      modifier: repairStatusPresentation[RepairStatus.COMPLETED].modifier,
     },
   ]
 
@@ -77,11 +78,11 @@ export function generateWorkshopMonitorHtml(
       <div
         class="monitor__distribution"
         role="img"
-        aria-label="${received} received, ${inRepair} in repair, ${completed} completed"
+        aria-label="${received} ${repairStatusPresentation[RepairStatus.RECEIVED].label}, ${inRepair} ${repairStatusPresentation[RepairStatus.IN_PROGRESS].label}, ${completed} ${repairStatusPresentation[RepairStatus.COMPLETED].label}"
       >
-        <span class="monitor__segment monitor__segment--received" style="width: ${percentage(received)}%"></span>
-        <span class="monitor__segment monitor__segment--in-repair" style="width: ${percentage(inRepair)}%"></span>
-        <span class="monitor__segment monitor__segment--completed" style="width: ${percentage(completed)}%"></span>
+        <span class="monitor__segment monitor__segment--${repairStatusPresentation[RepairStatus.RECEIVED].modifier}" style="width: ${percentage(received)}%"></span>
+        <span class="monitor__segment monitor__segment--${repairStatusPresentation[RepairStatus.IN_PROGRESS].modifier}" style="width: ${percentage(inRepair)}%"></span>
+        <span class="monitor__segment monitor__segment--${repairStatusPresentation[RepairStatus.COMPLETED].modifier}" style="width: ${percentage(completed)}%"></span>
       </div>
     </section>
   `

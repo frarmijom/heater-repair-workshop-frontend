@@ -496,7 +496,7 @@ body::before {
   background: #8f857d;
 }
 
-.monitor__segment--in-repair {
+.monitor__segment--in-progress {
   background: #ee6a32;
 }
 
@@ -531,7 +531,7 @@ body::before {
   background: #8f857d;
 }
 
-.monitor-card--in-repair .monitor-card__indicator {
+.monitor-card--in-progress .monitor-card__indicator {
   background: #ee6a32;
 }
 

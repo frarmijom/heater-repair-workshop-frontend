@@ -1,5 +1,6 @@
 import { RepairStatus } from '../models/index.ts'
 import type { RepairOrder } from '../models/index.ts'
+import { repairStatusPresentation } from './repair-status.ts'
 
 export type RepairOrderFilter = RepairStatus | 'all'
 
@@ -10,9 +11,9 @@ interface FilterOption {
 
 export const repairOrderFilterOptions: readonly FilterOption[] = [
   { label: 'All', value: 'all' },
-  { label: 'Received', value: RepairStatus.RECEIVED },
-  { label: 'In repair', value: RepairStatus.IN_PROGRESS },
-  { label: 'Completed', value: RepairStatus.COMPLETED },
+  ...Object.values(RepairStatus).map(value => ({
+    value, label: repairStatusPresentation[value].label,
+  })),
 ]
 
 export function isRepairOrderFilter(value: string): value is RepairOrderFilter {
