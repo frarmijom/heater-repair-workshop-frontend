@@ -417,12 +417,15 @@ describe('authenticated application shell', () => {
     expect(confirmation.hidden).toBe(true)
     opener.click()
     expect(confirmation.hidden).toBe(false)
+    expect(opener.getAttribute('aria-expanded')).toBe('true')
+    expect(opener.getAttribute('aria-controls')).toBe(confirmation.id)
     expect(confirmation.textContent).toContain('This will mark the repair order as completed.')
     expect(document.activeElement?.id).toBe('cancel-complete')
     expect(fetchMock.mock.calls.some(([url]) => url.endsWith('/complete'))).toBe(false)
     document.querySelector<HTMLButtonElement>('#cancel-complete')!.click()
     expect(confirmation.hidden).toBe(true)
     expect(opener.hidden).toBe(false)
+    expect(opener.getAttribute('aria-expanded')).toBe('false')
     expect(document.activeElement).toBe(opener)
     expect(fetchMock.mock.calls.some(([url]) => url.endsWith('/complete'))).toBe(false)
   })
@@ -470,7 +473,66 @@ describe('authenticated application shell', () => {
     resolveStart!(json({}, 500))
     await vi.waitFor(() => expect(document.querySelector<HTMLButtonElement>('#diagnosis-form button')!.disabled).toBe(false))
     expect(document.querySelector<HTMLTextAreaElement>('#repair-diagnosis')!.value).toBe('Keep this diagnosis')
+    expect(document.activeElement?.id).toBe('detail-action-error')
     expect(document.querySelector('#detail-action-error')?.textContent).toBe('Unable to complete the request.')
+  })
+
+
+  it('keeps native form labels, landmarks and non-focusable lifecycle semantics', async () => {
+    await startup('#repairs/order-1')
+    expect(document.querySelectorAll('main')).toHaveLength(1)
+    expect(document.querySelectorAll('nav[aria-label="Application"]')).toHaveLength(1)
+    expect(document.querySelector('.app-shell__nav [aria-current="page"]')?.textContent).toBe('Repairs')
+    expect(panel('repair-detail').querySelector('ol.repair-lifecycle')).not.toBeNull()
+    expect(panel('repair-detail').querySelectorAll('.repair-lifecycle [tabindex], .repair-lifecycle button, .repair-lifecycle a')).toHaveLength(0)
+    expect(panel('repair-detail').querySelectorAll('[aria-current="step"]')).toHaveLength(1)
+    expect(document.querySelector('#detail-action-error')?.getAttribute('role')).toBe('alert')
+    expect(document.querySelector('#repair-action-status')?.getAttribute('role')).toBe('status')
+    for (const field of document.querySelectorAll<HTMLInputElement | HTMLTextAreaElement>('.app-shell input, .app-shell textarea')) {
+      expect(document.querySelector(`label[for="${field.id}"]`)).not.toBeNull()
+      for (const id of field.getAttribute('aria-describedby')?.split(' ') ?? []) expect(document.getElementById(id)).not.toBeNull()
+    }
+  })
+
+  it('focuses the first invalid creation field and advances to the next invalid field', async () => {
+    await startup('#repairs')
+    document.querySelector<HTMLElement>('.order-form-panel summary')!.click()
+    const submit = document.querySelector<HTMLButtonElement>('#repair-order-form button')!
+    submit.click()
+    expect(document.activeElement?.id).toBe('customer-name')
+    expect(document.activeElement?.getAttribute('aria-invalid')).toBe('true')
+    document.querySelector<HTMLInputElement>('#customer-name')!.value = 'Customer'
+    submit.click()
+    expect(document.activeElement?.id).toBe('customer-phone')
+    expect(fetchMock.mock.calls.some(([url, init]) => url === '/api/repair-orders' && init.method === 'POST')).toBe(false)
+  })
+
+  it.each(['start', 'complete'])('restores destination focus when %s resolves after navigation', async action => {
+    const original = fetchMock.getMockImplementation()!
+    let resolveAction: ((response: Response) => void) | undefined
+    fetchMock.mockImplementation((url: string, init: RequestInit) => {
+      if (url === '/api/repair-orders') return Promise.resolve(json([{ ...order, status: action === 'start' ? 'RECEIVED' : 'IN_PROGRESS' }]))
+      if (url.endsWith('/' + action)) return new Promise<Response>(resolve => { resolveAction = resolve })
+      return original(url, init)
+    })
+    await startup('#repairs/order-1')
+    if (action === 'start') {
+      document.querySelector<HTMLTextAreaElement>('#repair-diagnosis')!.value = 'Diagnosis'
+      document.querySelector<HTMLButtonElement>('#diagnosis-form button')!.click()
+    } else {
+      document.querySelector<HTMLButtonElement>('#detail-complete')!.click()
+      document.querySelector<HTMLButtonElement>('#confirm-complete')!.click()
+    }
+    await vi.waitFor(() => expect(resolveAction).toBeDefined())
+    await navigate('dashboard')
+    const previousHeading = document.activeElement
+    expect(previousHeading?.id).toBe('dashboard-title')
+    resolveAction!(json({ ...order, status: action === 'start' ? 'IN_PROGRESS' : 'COMPLETED', diagnosis: 'Diagnosis' }))
+    await vi.waitFor(() => expect(document.querySelector('#repair-action-status')?.textContent).toContain('successfully'))
+    expect(previousHeading?.isConnected).toBe(false)
+    expect(document.activeElement?.id).toBe('dashboard-title')
+    expect(document.activeElement?.isConnected).toBe(true)
+    expect(location.hash).toBe('#dashboard')
   })
 
 })

@@ -171,6 +171,10 @@ export function setupRepairOrderForm(
     const payload = readPayload()
     const isValid = validateCurrentValues()
 
+    if (!isValid) {
+      controls.find(control => control.getAttribute('aria-invalid') === 'true')?.focus()
+    }
+
     if (isValid) {
       form.setAttribute('aria-busy', 'true')
       submitButton.disabled = true

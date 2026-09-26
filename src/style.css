@@ -481,6 +481,7 @@ body::before {
 }
 
 .form-field {
+  min-width: 0;
   display: flex;
   flex-direction: column;
 }
@@ -507,7 +508,7 @@ body::before {
 .form-field textarea,
 .form-field select {
   width: 100%;
-  border: 1px solid var(--line);
+  border: 1px solid var(--muted);
   border-radius: 11px;
   color: var(--ink);
   background: #fff;
@@ -567,7 +568,7 @@ body::before {
   border: 0;
   border-radius: 999px;
   color: #fff;
-  background: var(--accent);
+  background: var(--accent-dark);
   cursor: pointer;
   font: inherit;
   font-size: 13px;
@@ -589,7 +590,7 @@ body::before {
 }
 
 .order-form__actions button:focus-visible {
-  outline: 3px solid rgba(220, 91, 44, 0.25);
+  outline: 3px solid var(--accent-dark);
   outline-offset: 3px;
 }
 
@@ -880,3 +881,21 @@ body::before {
 #complete-confirmation { padding: 1rem; border: 1px solid var(--line); background: var(--paper); }
 #complete-confirmation h3 { margin-top: 0; }
 #complete-confirmation button { margin: 0.25rem; }
+
+/* Hardening for long values, enlarged text and reduced motion. */
+.app-shell button, .app-shell input, .app-shell textarea {
+  min-width: 0;
+  max-width: 100%;
+}
+.app-shell button { overflow-wrap: anywhere; white-space: normal; }
+.app-shell__skip { max-width: calc(100% - 1rem); min-height: 44px; }
+.order-form__actions { flex-wrap: wrap; }
+.order-form-panel__header > span { min-width: 0; }
+.repair-lifecycle li { min-width: 0; }
+.repair-detail form { grid-template-columns: minmax(0, 1fr); }
+.repair-card__actions { display: flex; flex-direction: column; align-items: flex-start; gap: 0.25rem; }
+.repair-detail-link { min-height: 44px; }
+@media (prefers-reduced-motion: reduce) {
+  .app-shell .request-state__spinner { animation: none; }
+  .app-shell input, .app-shell textarea, .app-shell select { transition: none; }
+}

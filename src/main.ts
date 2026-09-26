@@ -210,6 +210,7 @@ function setupRepairOrderFilters(): void {
 
 function renderWorkshop(): void {
   if (!authenticated) return
+  const previousFocus = document.activeElement
 
   renderApplicationContent(`
     <section data-destination="dashboard" aria-labelledby="dashboard-title">
@@ -243,6 +244,9 @@ function renderWorkshop(): void {
   setupRepairOrderForm(appContainer, addRepairOrder)
   setupRepairOrderFilters()
   setupRepairOrderActions()
+  if (previousFocus instanceof HTMLElement && previousFocus !== document.body && !previousFocus.isConnected) {
+    updateShellDestination(appContainer, true)
+  }
 }
 
 // Keep request feedback inside the authenticated shell, including Sign out.
@@ -308,13 +312,15 @@ function updateRepairDetail(): void {
     form?.setAttribute('aria-busy', String(pending))
     button.textContent = pending ? (input ? 'Starting repair…' : 'Completing repair…') : idleLabel
   }
-  const showConfirmation = (show: boolean): void => {
+  const showConfirmation = (show: boolean, moveFocus = true): void => {
     if (!opener || !confirmation || !cancel) return
     opener.hidden = show
     opener.setAttribute('aria-expanded', String(show))
     confirmation.hidden = !show
-    if (show) cancel.focus()
-    else opener.focus()
+    if (moveFocus) {
+      if (show) cancel.focus()
+      else opener.focus()
+    }
   }
   opener?.addEventListener('click', () => {
     if (!pendingRepairActions.has(order.id)) showConfirmation(true)
@@ -325,7 +331,7 @@ function updateRepairDetail(): void {
     showConfirmation(false)
   })
   if (pendingRepairActions.has(order.id)) {
-    if (confirmation) showConfirmation(true)
+    if (confirmation) showConfirmation(true, false)
     setPending(true)
   }
   const execute = async (): Promise<void> => {
@@ -359,12 +365,19 @@ function updateRepairDetail(): void {
         pendingRepairActions.delete(order.id)
         // Navigation may have replaced the pending form. Restore retry feedback there too.
         if (authenticated && selectedRepairId() === order.id && renderedDetailOrder === order && !button.isConnected) {
+          const restoreFocus = container.contains(document.activeElement)
           renderedDetailOrder = undefined
           updateRepairDetail()
           const currentInput = appContainer.querySelector<HTMLTextAreaElement>('#repair-diagnosis')
           if (currentInput && input) currentInput.value = input.value
           const currentError = appContainer.querySelector<HTMLElement>('#detail-action-error')
-          if (currentError) currentError.textContent = errorElement.textContent
+          if (currentError) {
+            currentError.textContent = errorElement.textContent
+            if (restoreFocus) {
+              currentError.tabIndex = -1
+              currentError.focus()
+            }
+          }
         }
       }
       setPending(false)
