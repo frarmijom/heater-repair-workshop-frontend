@@ -70,6 +70,7 @@ describe('authenticated application shell', () => {
     expect(active()).toBe('Repairs')
     expect(document.activeElement?.id).toBe('repairs-title')
     expect(panel('dashboard').hidden).toBe(true)
+    document.querySelector<HTMLElement>('.order-form-panel summary')!.click()
     document.querySelector<HTMLInputElement>('#customer-name')!.value = 'Draft customer'
     document.querySelector<HTMLButtonElement>('[data-repair-status="IN_PROGRESS"]')!.click()
     expect(document.querySelectorAll('.repair-card')).toHaveLength(0)
@@ -127,6 +128,10 @@ describe('authenticated application shell', () => {
   it('preserves creation, start and complete actions after navigation', async () => {
     await startup()
     await navigate('repairs')
+    const creation = document.querySelector<HTMLDetailsElement>('.order-form-panel')!
+    expect(creation.open).toBe(false)
+    creation.querySelector<HTMLElement>('summary')!.click()
+    expect(creation.open).toBe(true)
     for (const [id, value] of Object.entries({ 'customer-name': 'New Customer', 'customer-phone': '+56911112222',
       'heater-brand': 'Bosch', 'heater-model': 'Therm', 'reported-issue': 'Turns off' })) {
       document.querySelector<HTMLInputElement>('#' + id)!.value = value
@@ -174,4 +179,67 @@ describe('authenticated application shell', () => {
     document.querySelector<HTMLButtonElement>('#retry-load')!.click()
     await vi.waitFor(() => expect(document.querySelector('#workload-title')).not.toBeNull())
   })
+
+  it.each([
+    ['all', ['order-1', 'order-2', 'order-3']],
+    ['RECEIVED', ['order-1']],
+    ['IN_PROGRESS', ['order-2']],
+    ['COMPLETED', ['order-3']],
+  ])('filters the work queue by %s with accurate counts', async (filter, ids) => {
+    const original = fetchMock.getMockImplementation()!
+    fetchMock.mockImplementation((url: string, init: RequestInit) => url === '/api/repair-orders'
+      ? Promise.resolve(json([order, { ...order, id: 'order-2', status: 'IN_PROGRESS' },
+        { ...order, id: 'order-3', status: 'COMPLETED' }])) : original(url, init))
+    await startup('#repairs')
+    const button = document.querySelector<HTMLButtonElement>(`[data-repair-status="${filter}"]`)!
+    button.focus()
+    button.click()
+    expect(Array.from(document.querySelectorAll('.repair-card'), row => row.getAttribute('data-order-id'))).toEqual(ids)
+    expect(document.querySelector('#visible-order-count')?.textContent).toBe(`${ids.length} orders`)
+    expect(button.getAttribute('aria-pressed')).toBe('true')
+    expect(document.activeElement).toBe(button)
+    expect(document.querySelectorAll('.filter-button[aria-pressed="true"]')).toHaveLength(1)
+    expect(Array.from(document.querySelectorAll('.filter-button strong'), count => count.textContent)).toEqual(['3', '1', '1', '1'])
+    expect(document.querySelector<HTMLElement>('#repair-order-empty')!.hidden).toBe(true)
+  })
+
+  it('explains an empty collection and preserves access to creation', async () => {
+    const original = fetchMock.getMockImplementation()!
+    fetchMock.mockImplementation((url: string, init: RequestInit) => url === '/api/repair-orders'
+      ? Promise.resolve(json([])) : original(url, init))
+    await startup('#repairs')
+    expect(document.querySelectorAll('.repair-card')).toHaveLength(0)
+    const empty = document.querySelector<HTMLElement>('#repair-order-empty')!
+    expect(empty.hidden).toBe(false)
+    expect(empty.textContent).toContain('There are no repair orders.')
+    document.querySelector<HTMLElement>('.order-form-panel summary')!.click()
+    expect(document.querySelector<HTMLDetailsElement>('.order-form-panel')!.open).toBe(true)
+    expect(document.querySelector('#repair-order-form')).not.toBeNull()
+  })
+
+  it('distinguishes a filter with no results and restores the All queue', async () => {
+    await startup('#repairs')
+    document.querySelector<HTMLButtonElement>('[data-repair-status="COMPLETED"]')!.click()
+    const empty = document.querySelector<HTMLElement>('#repair-order-empty')!
+    expect(empty.hidden).toBe(false)
+    expect(empty.textContent).toBe('There are no repairs matching this filter.')
+    expect(document.querySelectorAll('.repair-card')).toHaveLength(0)
+    document.querySelector<HTMLButtonElement>('[data-repair-status="all"]')!.click()
+    expect(empty.hidden).toBe(true)
+    expect(document.querySelectorAll('.repair-card')).toHaveLength(1)
+  })
+
+  it('retains inline action errors and allows retrying the current action', async () => {
+    await startup('#repairs')
+    vi.spyOn(window, 'prompt').mockReturnValue('Replace valve')
+    const original = fetchMock.getMockImplementation()!
+    fetchMock.mockImplementation((url: string, init: RequestInit) => url.endsWith('/start')
+      ? Promise.resolve(json({}, 500)) : original(url, init))
+    const button = document.querySelector<HTMLButtonElement>('[data-repair-action="start"]')!
+    button.click()
+    await vi.waitFor(() => expect(document.querySelector('.repair-card__action-error')?.textContent).toBe('Unable to complete the request.'))
+    expect(button.disabled).toBe(false)
+    expect(document.querySelector('.repair-card--received')).not.toBeNull()
+  })
+
 })

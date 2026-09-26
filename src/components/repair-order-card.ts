@@ -39,18 +39,15 @@ export function generateRepairOrderCardHtml(order: RepairOrder): string {
   return `
     <article class="repair-card repair-card--${statusModifier}" data-order-id="${escapeHtml(order.id)}">
       <header class="repair-card__header">
-        <p class="repair-card__id">Repair order #${order.id}</p>
-        <span class="repair-card__status repair-card__status--${statusModifier}">
-          ${label}
-        </span>
+        <p class="repair-card__id">Repair order #${escapeHtml(order.id)}</p>
+        <h3>${escapeHtml(order.heaterBrand)} ${escapeHtml(order.heaterModel)}</h3>
+        <p class="repair-card__customer">
+          ${escapeHtml(order.customerName)} · ${escapeHtml(order.customerContact)}
+        </p>
       </header>
-      <h2>${escapeHtml(order.heaterBrand)} ${escapeHtml(order.heaterModel)}</h2>
-      <p class="repair-card__customer">
-        ${escapeHtml(order.customerName)}
-        <span>${escapeHtml(order.customerContact)}</span>
-      </p>
-      <p class="repair-card__issue">${escapeHtml(order.reportedIssue)}</p>
-      ${diagnosisHtml}
+      <div>
+        <span class="repair-card__status repair-card__status--${statusModifier}">${label}</span>
+      </div>
       <dl class="repair-card__dates">
         <div>
           <dt>${repairStatusPresentation[RepairStatus.RECEIVED].label}</dt>
@@ -61,6 +58,10 @@ export function generateRepairOrderCardHtml(order: RepairOrder): string {
       <div class="repair-card__actions">
         ${actionHtml}
         <p class="repair-card__action-error" role="alert"></p>
+      </div>
+      <div class="repair-card__notes">
+        <p class="repair-card__issue"><strong>Reported issue:</strong> ${escapeHtml(order.reportedIssue)}</p>
+        ${diagnosisHtml}
       </div>
     </article>
   `

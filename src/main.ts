@@ -197,11 +197,12 @@ function setupRepairOrderActions(): void {
 function setupRepairOrderFilters(): void {
   const repairList = appContainer.querySelector<HTMLElement>('#repair-order-list')
   const visibleCount = appContainer.querySelector<HTMLElement>('#visible-order-count')
+  const emptyMessage = appContainer.querySelector<HTMLElement>('#repair-order-empty')
   const filterButtons = appContainer.querySelectorAll<HTMLButtonElement>(
     '[data-repair-status]',
   )
 
-  if (repairList === null || visibleCount === null) {
+  if (repairList === null || visibleCount === null || emptyMessage === null) {
     throw new Error('The repair order list controls were not found.')
   }
 
@@ -211,6 +212,10 @@ function setupRepairOrderFilters(): void {
     )
     repairList.innerHTML = visibleOrders.map(generateRepairOrderCardHtml).join('')
     visibleCount.textContent = `${visibleOrders.length} orders`
+    emptyMessage.hidden = visibleOrders.length > 0
+    emptyMessage.textContent = repairOrders.length === 0
+      ? 'There are no repair orders. Use Add repair order to create one.'
+      : 'There are no repairs matching this filter.'
 
     filterButtons.forEach((button) => {
       button.setAttribute(
@@ -219,6 +224,8 @@ function setupRepairOrderFilters(): void {
       )
     })
   }
+
+  renderFilteredOrders('all')
 
   filterButtons.forEach((button) => {
     button.addEventListener('click', () => {
@@ -232,7 +239,6 @@ function setupRepairOrderFilters(): void {
 
 function renderWorkshop(): void {
   if (!authenticated) return
-  const cardsHtml = repairOrders.map(generateRepairOrderCardHtml).join('')
 
   renderApplicationContent(`
     <section data-destination="dashboard" aria-labelledby="dashboard-title">
@@ -248,15 +254,16 @@ function renderWorkshop(): void {
         <h1 id="repairs-title" tabindex="-1">Repairs</h1>
       </header>
       ${generateRepairOrderFormHtml()}
-      <nav class="repair-filters" aria-label="Repair order status filters">
-        ${generateRepairOrderFiltersHtml(repairOrders)}
-      </nav>
-      <div class="repair-list__heading">
-        <h2>Repair orders</h2>
-        <p id="visible-order-count" class="workshop__count">${repairOrders.length} orders</p>
-      </div>
-      <section id="repair-order-list" class="repair-list" aria-label="Repair orders">
-        ${cardsHtml}
+      <section aria-labelledby="repair-queue-title">
+        <div class="repair-list__heading">
+          <h2 id="repair-queue-title">Repair work queue</h2>
+          <p id="visible-order-count" class="workshop__count" aria-live="polite"></p>
+        </div>
+        <nav class="repair-filters" aria-label="Repair order status filters">
+          ${generateRepairOrderFiltersHtml(repairOrders)}
+        </nav>
+        <p id="repair-order-empty" class="repair-list__empty" role="status" hidden></p>
+        <div id="repair-order-list" class="repair-list"></div>
       </section>
     </section>
   `)

@@ -66,6 +66,30 @@ describe('canonical repair status presentation', () => {
   })
 })
 
+describe('work queue item data', () => {
+  it('shows the real identifier, heater, customer and reported information', () => {
+    const repair = order(RepairStatus.IN_PROGRESS)
+    const item = render(generateRepairOrderCardHtml(repair))
+    expect(item.querySelector('.repair-card__id')?.textContent).toBe(`Repair order #${repair.id}`)
+    expect(item.querySelector('h3')?.textContent).toBe(`${repair.heaterBrand} ${repair.heaterModel}`)
+    expect(item.querySelector('.repair-card__customer')?.textContent).toContain(repair.customerName)
+    expect(item.querySelector('.repair-card__customer')?.textContent).toContain(repair.customerContact)
+    expect(item.querySelector('.repair-card__issue')?.textContent).toContain(repair.reportedIssue)
+    expect(item.querySelector('.repair-card__diagnosis')?.textContent).toContain(repair.diagnosis)
+    expect(item.querySelector('button')?.textContent).toBe('Complete repair')
+    expect(render(generateRepairOrderCardHtml(order(RepairStatus.RECEIVED))).querySelector('button')?.textContent).toBe('Start repair')
+  })
+
+  it('renders API text as text, including the order identifier', () => {
+    const text = '<img src=x onerror=alert(1)>'
+    const item = render(generateRepairOrderCardHtml({ ...order(RepairStatus.RECEIVED), id: text, heaterBrand: text,
+      heaterModel: text, customerName: text, customerContact: text, reportedIssue: text, diagnosis: text }))
+    expect(item.querySelector('img')).toBeNull()
+    expect(item.querySelector('.repair-card__id')?.textContent).toBe(`Repair order #${text}`)
+    expect(item.querySelector('button')?.getAttribute('data-repair-order-id')).toBe(text)
+  })
+})
+
 describe('cards consume shared repair date formatting', () => {
   it('preserves local reception date/time and completion date', () => {
     const repair = order(RepairStatus.COMPLETED)

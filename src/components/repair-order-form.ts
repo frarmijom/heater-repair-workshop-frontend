@@ -35,7 +35,7 @@ function validatePayload(payload: RepairOrderFormPayload): FormErrors {
 
 export function generateRepairOrderFormHtml(): string {
   return `
-    <details class="order-form-panel" open>
+    <details class="order-form-panel">
       <summary class="order-form-panel__header">
         <span>
           <span class="order-form-panel__eyebrow">New workshop entry</span>

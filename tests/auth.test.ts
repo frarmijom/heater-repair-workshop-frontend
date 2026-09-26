@@ -116,6 +116,7 @@ describe('AUTH-01 browser flow', () => {
       }
       return original(url, init)
     })
+    document.querySelector<HTMLElement>('.order-form-panel summary')!.click()
     for (const [id, value] of Object.entries({ 'customer-name': 'Late order', 'customer-phone': '+56911112222',
       'heater-brand': 'Bosch', 'heater-model': 'Therm', 'reported-issue': 'Turns off' })) {
       document.querySelector<HTMLInputElement>('#' + id)!.value = value
