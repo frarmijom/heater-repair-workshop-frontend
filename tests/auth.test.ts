@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { ServiceType } from '../src/models/index.ts'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 let authenticated: boolean
@@ -167,7 +168,7 @@ describe('AUTH-01 browser flow', () => {
     })
     location.hash = '#repairs/new'
     await vi.waitFor(() => expect(document.querySelector<HTMLElement>('[data-destination="repair-new"]')!.hidden).toBe(false))
-    for (const [id, value] of Object.entries({ 'customer-name': 'Late order', 'customer-phone': '+56911112222',
+    for (const [id, value] of Object.entries({ 'customer-name': 'Late order', 'customer-phone': '11112222',
       'heater-brand': 'Bosch', 'heater-model': 'Therm', 'reported-issue': 'Turns off' })) {
       document.querySelector<HTMLInputElement>('#' + id)!.value = value
     }
@@ -176,7 +177,7 @@ describe('AUTH-01 browser flow', () => {
     document.querySelector<HTMLButtonElement>('#logout')!.click()
     await waitLogin(); location.hash = '#dashboard'; await submit(); await waitDashboard()
     complete!(json({ id: 'stale', customerName: 'Late order', customerContact: '+56911112222',
-      heaterBrand: 'Bosch', heaterModel: 'Therm', reportedIssue: 'Turns off', status: 'RECEIVED',
+      heaterBrand: 'Bosch', heaterModel: 'Therm', serviceType: ServiceType.REPAIR, reportedIssue: 'Turns off', status: 'RECEIVED',
       receivedAt: '2026-01-01T00:00:00Z', diagnosis: null, completedAt: null }))
     await new Promise(resolve => setTimeout(resolve, 0))
     expect(document.querySelector('.workshop')).not.toBeNull()

@@ -1,3 +1,4 @@
+import { serviceTypePresentation } from './service-type-presentation.ts'
 import { RepairStatus } from '../models/index.ts'
 import type { RepairOrder } from '../models/index.ts'
 
@@ -14,6 +15,7 @@ export function escapeHtml(value: string): string {
 }
 
 export function generateRepairOrderCardHtml(order: RepairOrder): string {
+  const service = serviceTypePresentation[order.serviceType]
   const { label, modifier: statusModifier } = repairStatusPresentation[order.status]
   const completedDate = formatRepairDate(order.completedAt)
   const completedDateHtml =
@@ -40,6 +42,7 @@ export function generateRepairOrderCardHtml(order: RepairOrder): string {
     <article class="repair-card repair-card--${statusModifier}" data-order-id="${escapeHtml(order.id)}">
       <header class="repair-card__header">
         <p class="repair-card__id">Reparación #${escapeHtml(order.id)}</p>
+        <p class="repair-card__service">Tipo de servicio: ${service.label}</p>
         <h3>${escapeHtml(order.heaterBrand)} ${escapeHtml(order.heaterModel)}</h3>
         <p class="repair-card__customer">
           ${escapeHtml(order.customerName)} · ${escapeHtml(order.customerContact)}
@@ -61,7 +64,7 @@ export function generateRepairOrderCardHtml(order: RepairOrder): string {
         <p class="repair-card__action-error" role="alert"></p>
       </div>
       <div class="repair-card__notes">
-        <p class="repair-card__issue"><strong>Problema reportado:</strong> ${escapeHtml(order.reportedIssue)}</p>
+        <p class="repair-card__issue"><strong>${service.issueLabel}:</strong> ${escapeHtml(order.reportedIssue || (service.issueRequired ? '' : '—'))}</p>
         ${diagnosisHtml}
       </div>
     </article>

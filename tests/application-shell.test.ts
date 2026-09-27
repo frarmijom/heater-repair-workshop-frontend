@@ -1,10 +1,11 @@
 // @vitest-environment jsdom
+import { ServiceType } from '../src/models/index.ts'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status })
 const order = {
   id: 'order-1', customerName: 'Test Customer', customerContact: '+56911112222',
-  heaterBrand: 'Bosch', heaterModel: 'Therm', reportedIssue: 'Turns off',
+  heaterBrand: 'Bosch', heaterModel: 'Therm', serviceType: ServiceType.REPAIR, reportedIssue: 'Turns off',
   status: 'RECEIVED', receivedAt: '2026-09-26T12:00:00Z', diagnosis: null, completedAt: null,
 }
 let fetchMock: ReturnType<typeof vi.fn>
@@ -303,7 +304,7 @@ describe('authenticated application shell', () => {
     await startup()
     await navigate('repairs')
     await route('#repairs/new', 'repair-new')
-    for (const [id, value] of Object.entries({ 'customer-name': 'New Customer', 'customer-phone': '+56911112222',
+    for (const [id, value] of Object.entries({ 'customer-name': 'New Customer', 'customer-phone': '11112222',
       'heater-brand': 'Bosch', 'heater-model': 'Therm', 'reported-issue': 'Turns off' })) {
       document.querySelector<HTMLInputElement>('#' + id)!.value = value
     }
@@ -819,8 +820,11 @@ describe('I5 intention-driven repairs', () => {
 
   it('keeps the creation payload and CSRF contract, blocks duplicate submissions and opens the created detail', async () => {
     await startup('#repairs/new')
-    const payload = { customerName: 'Cliente real', customerContact: '+56911112222', heaterBrand: 'Bosch', heaterModel: 'Therm', reportedIssue: 'No enciende' }
-    for (const [name, value] of Object.entries(payload)) document.querySelector<HTMLInputElement>(`[name="${name}"]`)!.value = ` ${value} `
+    const payload = { customerName: 'Cliente real', customerContact: '+56911112222', heaterBrand: 'Bosch', heaterModel: 'Therm', serviceType: ServiceType.REPAIR, reportedIssue: 'No enciende' }
+    for (const [name, value] of Object.entries(payload)) {
+      if (name === 'serviceType') continue
+      document.querySelector<HTMLInputElement>(`[name="${name}"]`)!.value = name === 'customerContact' ? value.slice(4) : ` ${value} `
+    }
     const form = document.querySelector('#repair-order-form')!
     form.dispatchEvent(new Event('submit', { cancelable: true }))
     form.dispatchEvent(new Event('submit', { cancelable: true }))
@@ -848,8 +852,9 @@ describe('I5 asynchronous route safeguards', () => {
     document.querySelector('#repair-search-form')!.dispatchEvent(new Event('submit', { cancelable: true }))
     await vi.waitFor(() => expect(resolveOrders).toBeDefined())
     await route('#repairs/new', 'repair-new')
-    for (const [name, value] of Object.entries({ customerName: 'Nuevo cliente', customerContact: '+56911112222', heaterBrand: 'Bosch', heaterModel: 'Therm', reportedIssue: 'No enciende' })) {
-      document.querySelector<HTMLInputElement>(`[name="${name}"]`)!.value = value
+    for (const [name, value] of Object.entries({ customerName: 'Nuevo cliente', customerContact: '+56911112222', heaterBrand: 'Bosch', heaterModel: 'Therm', serviceType: ServiceType.REPAIR, reportedIssue: 'No enciende' })) {
+      if (name === 'serviceType') continue
+      document.querySelector<HTMLInputElement>(`[name="${name}"]`)!.value = name === 'customerContact' ? value.slice(4) : value
     }
     document.querySelector('#repair-order-form')!.dispatchEvent(new Event('submit', { cancelable: true }))
     await vi.waitFor(() => expect(location.hash).toBe('#repairs/order-2'))
@@ -870,5 +875,25 @@ describe('I5 asynchronous route safeguards', () => {
     expect(document.querySelector('.app-shell')).toBeNull()
     expect(document.querySelector('#login-error')?.textContent).toContain('Tu sesión ha expirado')
     expect(fetchMock.mock.calls.filter(([url]) => url === '/api/repair-orders')).toHaveLength(1)
+  })
+})
+
+describe('I6 target contract', () => {
+  it.each(['', 'Mantención preventiva solicitada'])('sends maintenance observations %j unchanged through the existing service', async reportedIssue => {
+    await startup('#repairs/new')
+    for (const [name, value] of Object.entries({ customerName: 'Juan Pérez', customerContact: '12345678', heaterBrand: 'Junkers', heaterModel: 'WR11', reportedIssue })) {
+      document.querySelector<HTMLInputElement>(`[name="${name}"]`)!.value = value
+    }
+    document.querySelector<HTMLInputElement>('input[value="MAINTENANCE"]')!.click()
+    document.querySelector('#repair-order-form')!.dispatchEvent(new Event('submit', { cancelable: true }))
+    await vi.waitFor(() => expect(location.hash).toBe('#repairs/order-2'))
+    await vi.waitFor(() => expect(panel('repair-detail').textContent).toContain('Mantención'))
+    const requests = fetchMock.mock.calls.filter(([url, init]) => url === '/api/repair-orders' && init.method === 'POST')
+    expect(requests).toHaveLength(1)
+    expect(JSON.parse(requests[0]![1].body as string)).toEqual({ customerName: 'Juan Pérez', customerContact: '+56912345678', heaterBrand: 'Junkers', heaterModel: 'WR11', serviceType: 'MAINTENANCE', reportedIssue })
+    expect(new Headers(requests[0]![1].headers).get('X-CSRF-TOKEN')).toBe('test-token')
+    expect(panel('repair-detail').textContent).toContain('Observaciones')
+    expect(panel('repair-detail').textContent).toContain(reportedIssue || '—')
+    expect(document.querySelector('#diagnosis-form')).not.toBeNull()
   })
 })

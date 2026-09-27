@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { ServiceType } from '../src/models/index.ts'
 import { describe, expect, it } from 'vitest'
 import { generateRepairDetailHtml } from '../src/components/repair-detail.ts'
 import { RepairStatus } from '../src/models/index.ts'
@@ -6,7 +7,7 @@ import type { RepairOrder } from '../src/models/index.ts'
 import { formatRepairDate, formatRepairDateTime } from '../src/formatters/repair-time.ts'
 
 const order: RepairOrder = { id: 'id-1', customerName: 'Customer', customerContact: '+56912345678',
-  heaterBrand: 'Brand', heaterModel: 'Model', reportedIssue: 'No heat', diagnosis: null,
+  heaterBrand: 'Brand', heaterModel: 'Model', serviceType: ServiceType.REPAIR, reportedIssue: 'No heat', diagnosis: null,
   status: RepairStatus.RECEIVED, receivedAt: '2026-09-26T12:00:00Z', completedAt: null }
 function render(repair: RepairOrder | undefined) {
   const root = document.createElement('div')

@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { ServiceType } from '../src/models/index.ts'
 import { describe, expect, it } from 'vitest'
 import { RepairStatus } from '../src/models/index.ts'
 import type { RepairOrder } from '../src/models/index.ts'
@@ -14,7 +15,7 @@ function order(status: RepairStatus): RepairOrder {
   return {
     id: 'ORDER-550E8400-E29B-41D4-A716-446655440001', customerName: 'Test customer',
     customerContact: '+56911112222', heaterBrand: 'Bosch', heaterModel: 'Therm',
-    reportedIssue: 'Turns off', diagnosis: status === RepairStatus.RECEIVED ? null : 'Damaged sensor',
+    serviceType: ServiceType.REPAIR, reportedIssue: 'Turns off', diagnosis: status === RepairStatus.RECEIVED ? null : 'Damaged sensor',
     status, receivedAt: '2026-09-24T12:15:00Z',
     completedAt: status === RepairStatus.COMPLETED ? '2026-09-26T13:45:00Z' : null,
   }

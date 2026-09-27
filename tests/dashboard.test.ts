@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { ServiceType } from '../src/models/index.ts'
 import { describe, expect, it } from 'vitest'
 import { generateWorkshopMonitorHtml } from '../src/components/workshop-monitor.ts'
 import { dashboardCategories, summarizeDashboard, weeklyReceptions } from '../src/dashboard/dashboard-data.ts'
@@ -8,7 +9,7 @@ import type { RepairOrder } from '../src/models/index.ts'
 function orders(...statuses: RepairStatus[]): RepairOrder[] {
   return statuses.map((status, index) => ({
     id: String(index), customerName: 'Test customer', customerContact: '+56911112222',
-    heaterBrand: 'Bosch', heaterModel: 'Therm', reportedIssue: 'Turns off',
+    heaterBrand: 'Bosch', heaterModel: 'Therm', serviceType: ServiceType.REPAIR, reportedIssue: 'Turns off',
     diagnosis: null, status, receivedAt: '2026-09-26T12:00:00Z', completedAt: null,
   }))
 }

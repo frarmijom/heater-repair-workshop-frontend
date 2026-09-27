@@ -1,3 +1,4 @@
+import { serviceTypePresentation } from './service-type-presentation.ts'
 import { RepairStatus } from '../models/index.ts'
 import type { RepairOrder } from '../models/index.ts'
 import { repairStatusPresentation } from './repair-status.ts'
@@ -7,6 +8,7 @@ import { formatRepairDate, formatRepairDateTime } from '../formatters/repair-tim
 export function generateRepairDetailHtml(order: RepairOrder | undefined): string {
   const back = '<nav class="repairs-breadcrumb" aria-label="Ruta de navegación"><a href="#repairs">Volver a Reparaciones</a></nav>'
   if (!order) return `${back}<h1 id="repair-detail-title" tabindex="-1">Reparación no encontrada</h1><p>No se encontró esta reparación.</p>`
+  const service = serviceTypePresentation[order.serviceType]
   const states = Object.values(RepairStatus)
   const current = states.indexOf(order.status)
   const { label, modifier } = repairStatusPresentation[order.status]
@@ -49,7 +51,8 @@ export function generateRepairDetailHtml(order: RepairOrder | undefined): string
       <dl class="repair-detail__information">
         <div><dt>Cliente</dt><dd>${escapeHtml(order.customerName)}</dd></div>
         <div><dt>Contacto</dt><dd>${escapeHtml(order.customerContact)}</dd></div>
-        <div><dt>Problema reportado</dt><dd>${escapeHtml(order.reportedIssue)}</dd></div>
+        <div><dt>Tipo de servicio</dt><dd>${service.label}</dd></div>
+        <div><dt>${service.issueLabel}</dt><dd>${escapeHtml(order.reportedIssue || (service.issueRequired ? '' : '—'))}</dd></div>
         ${order.diagnosis ? `<div><dt>Diagnóstico</dt><dd>${escapeHtml(order.diagnosis)}</dd></div>` : ''}
       </dl>
     </section>

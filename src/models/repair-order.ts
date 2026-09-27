@@ -1,3 +1,5 @@
+import type { ServiceType } from './service-type.ts'
+
 export enum RepairStatus {
   RECEIVED = 'RECEIVED',
   IN_PROGRESS = 'IN_PROGRESS',
@@ -10,6 +12,7 @@ export interface RepairOrder {
   customerContact: string
   heaterBrand: string
   heaterModel: string
+  serviceType: ServiceType
   reportedIssue: string
   diagnosis: string | null
   status: RepairStatus
@@ -23,5 +26,6 @@ export type CreateRepairOrderPayload = Pick<
   | 'customerContact'
   | 'heaterBrand'
   | 'heaterModel'
+  | 'serviceType'
   | 'reportedIssue'
 >

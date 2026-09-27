@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { ServiceType } from '../src/models/index.ts'
 import { describe, expect, it } from 'vitest'
 import { generateRepairResultsHtml } from '../src/components/repair-results.ts'
 import { RepairStatus, type RepairOrder } from '../src/models/index.ts'
@@ -6,7 +7,7 @@ import { repairStatusPresentation } from '../src/components/repair-status.ts'
 import { formatRepairDateTime } from '../src/formatters/repair-time.ts'
 
 const order: RepairOrder = { id: 'order-1', customerName: 'Cliente', customerContact: '+56911112222',
-  heaterBrand: 'Bosch', heaterModel: 'Therm', reportedIssue: 'No enciende', diagnosis: null,
+  heaterBrand: 'Bosch', heaterModel: 'Therm', serviceType: ServiceType.REPAIR, reportedIssue: 'No enciende', diagnosis: null,
   status: RepairStatus.RECEIVED, receivedAt: '2026-09-26T12:00:00Z', completedAt: null }
 const render = (orders: RepairOrder[]) => {
   const root = document.createElement('div')
@@ -19,8 +20,8 @@ describe('repair query results', () => {
     const root = render([{ ...order, status }])
     expect(root.querySelector('table')?.getAttribute('aria-labelledby')).toBe('repair-results-title')
     expect([...root.querySelectorAll('thead th[scope="col"]')].map(node => node.textContent))
-      .toEqual(['Orden', 'Cliente', 'Equipo', 'Estado', 'Ingreso', 'Acción'])
-    expect(root.querySelector('tbody th[scope="row"]')?.textContent).toBe('#order-1')
+      .toEqual(['Orden / Servicio', 'Cliente', 'Equipo', 'Estado', 'Ingreso', 'Acción'])
+    expect(root.querySelector('tbody th[scope="row"] > span')?.textContent).toBe('#order-1')
     for (const text of [order.customerName, order.heaterBrand, order.heaterModel, formatRepairDateTime(order.receivedAt, 'es-CL')!]) expect(root.textContent).toContain(text)
     expect(root.querySelector('.repair-card__status')?.textContent).toBe(repairStatusPresentation[status].label)
     const link = root.querySelector<HTMLAnchorElement>('a')!
