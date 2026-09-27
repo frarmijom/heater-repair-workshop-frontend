@@ -9,7 +9,7 @@ const relativeFormatter = new Intl.RelativeTimeFormat(undefined, { numeric: 'alw
 
 type Timestamp = string | null | undefined
 
-function parseTimestamp(timestamp: Timestamp): Date | null {
+export function parseTimestamp(timestamp: Timestamp): Date | null {
   if (timestamp == null) return null
   const date = new Date(timestamp)
   return Number.isFinite(date.getTime()) ? date : null

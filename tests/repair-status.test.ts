@@ -2,7 +2,9 @@
 import { describe, expect, it } from 'vitest'
 import { RepairStatus } from '../src/models/index.ts'
 import type { RepairOrder } from '../src/models/index.ts'
+import { dashboardCategories } from '../src/dashboard/dashboard-data.ts'
 import { repairStatusPresentation } from '../src/components/repair-status.ts'
+import { generateRepairDetailHtml } from '../src/components/repair-detail.ts'
 import { generateRepairOrderCardHtml } from '../src/components/repair-order-card.ts'
 import { generateRepairOrderFiltersHtml, isRepairOrderFilter } from '../src/components/repair-order-filters.ts'
 import { generateWorkshopMonitorHtml } from '../src/components/workshop-monitor.ts'
@@ -24,9 +26,9 @@ function render(html: string): HTMLDivElement {
 }
 
 const cases = [
-  { status: RepairStatus.RECEIVED, label: 'Received', modifier: 'received', action: 'start' },
-  { status: RepairStatus.IN_PROGRESS, label: 'In repair', modifier: 'in-progress', action: 'complete' },
-  { status: RepairStatus.COMPLETED, label: 'Completed', modifier: 'completed', action: null },
+  { status: RepairStatus.RECEIVED, label: 'Recibidas', modifier: 'received', action: 'start' },
+  { status: RepairStatus.IN_PROGRESS, label: 'En reparación', modifier: 'in-progress', action: 'complete' },
+  { status: RepairStatus.COMPLETED, label: 'Completadas', modifier: 'completed', action: null },
 ]
 
 describe('canonical repair status presentation', () => {
@@ -44,6 +46,11 @@ describe('canonical repair status presentation', () => {
     expect(card.querySelector(`.repair-card__status--${modifier}`)).not.toBeNull()
     expect(card.querySelector('button')?.getAttribute('data-repair-action') ?? null).toBe(action)
 
+    const detail = render(generateRepairDetailHtml(order(status)))
+    expect(detail.querySelector('.repair-card__status')!.textContent).toBe(label)
+    expect(detail.querySelector(`[data-stage="${status}"] strong`)!.textContent).toBe(label)
+    expect(detail.querySelector('[aria-current="step"]')!.getAttribute('data-stage')).toBe(status)
+
     const filters = render(generateRepairOrderFiltersHtml([order(status)]))
     const filter = filters.querySelector(`[data-repair-status="${status}"]`)!
     expect(filter.querySelector('span')!.textContent).toBe(label)
@@ -52,7 +59,8 @@ describe('canonical repair status presentation', () => {
 
     const overview = render(generateWorkshopMonitorHtml([order(status)]))
     const metric = overview.querySelector(`.dashboard-metric--${modifier}`)!
-    expect(metric.querySelector('dt')!.textContent).toBe(label)
+    expect(metric.querySelector('dt')!.firstChild?.textContent).toBe(dashboardCategories.find(category => category.status === status)!.label)
+    expect(overview.querySelector('.dashboard-distribution')!.textContent).toContain(label)
     expect(metric.querySelector('dd')!.textContent).toBe('1')
   })
 
