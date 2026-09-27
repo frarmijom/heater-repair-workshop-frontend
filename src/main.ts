@@ -1,4 +1,5 @@
 import './style.css'
+import { generateLoginScreenHtml, setupPasswordVisibility } from './components/login-screen.ts'
 import { checkSession, login, logout } from './services/auth-service.ts'
 import { SessionExpiredError, setSessionExpiredHandler } from './services/api.ts'
 import { generateApplicationShellHtml, updateShellDestination, selectedRepairId } from './components/application-shell.ts'
@@ -396,18 +397,8 @@ function showLogin(message = ''): void {
   renderedDetailOrder = undefined
   if (clockIntervalId !== undefined) window.clearInterval(clockIntervalId)
   clockIntervalId = undefined
-  appContainer.innerHTML = `
-    <main class="request-state auth-view">
-      <h1>Heater Repair Workshop</h1>
-      <form id="login-form" class="auth-form">
-        <label for="login-email">Email</label>
-        <input id="login-email" name="email" type="email" autocomplete="username" maxlength="254" required />
-        <label for="login-password">Password</label>
-        <input id="login-password" name="password" type="password" autocomplete="current-password" maxlength="1024" required />
-        <button type="submit">Sign in</button>
-        <p id="login-error" role="alert"></p>
-      </form>
-    </main>`
+  appContainer.innerHTML = generateLoginScreenHtml()
+  setupPasswordVisibility(appContainer)
   const form = appContainer.querySelector<HTMLFormElement>('#login-form')!
   const errorElement = appContainer.querySelector<HTMLElement>('#login-error')!
   errorElement.textContent = message
@@ -416,11 +407,11 @@ function showLogin(message = ''): void {
     event.preventDefault()
     if (submitting) return
     submitting = true
-    const button = form.querySelector<HTMLButtonElement>('button')!
+    const button = form.querySelector<HTMLButtonElement>('button[type="submit"]')!
     const email = form.querySelector<HTMLInputElement>('#login-email')!
     const password = form.querySelector<HTMLInputElement>('#login-password')!
     button.disabled = true
-    button.textContent = 'Signing in…'
+    button.textContent = 'Iniciando sesión…'
     form.setAttribute('aria-busy', 'true')
     errorElement.textContent = ''
     try {
@@ -434,7 +425,7 @@ function showLogin(message = ''): void {
       password.value = ''
       submitting = false
       button.disabled = false
-      button.textContent = 'Sign in'
+      button.textContent = 'Iniciar sesión'
       form.removeAttribute('aria-busy')
     }
   })
