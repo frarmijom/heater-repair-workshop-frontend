@@ -53,21 +53,57 @@ describe('authenticated application shell', () => {
     expect(location.hash).toBe('#dashboard')
     expect(active()).toBe('Dashboard')
     expect(document.querySelectorAll('main')).toHaveLength(1)
-    expect(document.querySelector('nav[aria-label="Application"]')?.textContent).toContain('Repairs')
+    expect(document.querySelector('nav[aria-label="Application"]')?.textContent).toContain('Reparaciones')
     expect(panel('dashboard').hidden).toBe(false)
     expect(panel('dashboard').querySelector('#workload-title')).not.toBeNull()
     expect(panel('repairs').hidden).toBe(true)
-    expect(document.querySelector('header #logout')?.textContent).toBe('Sign out')
+    expect(document.querySelector('.app-sidebar #logout')?.textContent).toBe('Cerrar sesión')
     expect(document.querySelector('.hero-scene')).toBeNull()
     expect(panel('dashboard').querySelectorAll('h1')).toHaveLength(1)
     expect(panel('dashboard').querySelector('h2')?.textContent).toBe('Workshop overview')
     expect(panel('dashboard').querySelector('.monitor, .monitor-card, [role="img"]')).toBeNull()
   })
 
+  it('groups future modules without introducing routes or focusable disabled controls', async () => {
+    await startup()
+    const sidebar = document.querySelector('.app-sidebar')!
+    expect(sidebar.querySelector('.app-shell__brand')?.textContent).toBe('Heater RepairWorkshop')
+    expect([...sidebar.querySelectorAll('nav a')].map(a => a.getAttribute('href'))).toEqual(['#dashboard', '#repairs'])
+    for (const [id, labels] of Object.entries({
+      'sidebar-operation': ['Reparaciones', 'Clientes'],
+      'sidebar-inventory': ['Repuestos'],
+      'sidebar-management': ['Reportes'],
+    })) {
+      const section = sidebar.querySelector(`section[aria-labelledby="${id}"]`)!
+      expect(section.querySelector('h2')?.id).toBe(id)
+      for (const label of labels) expect(section.textContent).toContain(label)
+    }
+    const future = [...sidebar.querySelectorAll<HTMLButtonElement>('nav button')]
+    expect(future.map(button => button.firstChild?.textContent?.trim())).toEqual(['Clientes', 'Repuestos', 'Reportes', 'Configuración'])
+    const hash = location.hash
+    for (const button of future) {
+      expect(button.disabled).toBe(true)
+      expect(button.hasAttribute('href')).toBe(false)
+      button.focus()
+      expect(document.activeElement).not.toBe(button)
+      button.click()
+      expect(location.hash).toBe(hash)
+    }
+    expect(sidebar.querySelector('#logout')?.getAttribute('type')).toBe('button')
+    expect(sidebar.querySelector('#logout-error')?.getAttribute('role')).toBe('alert')
+    expect(sidebar.querySelector('.app-sidebar__user')?.textContent).toContain('Franco Armijo')
+    expect(sidebar.querySelector('.app-sidebar__user')?.textContent).toContain('Administrador')
+    expect(sidebar.querySelector('.app-sidebar__blueprint')?.getAttribute('aria-hidden')).toBe('true')
+    for (const svg of sidebar.querySelectorAll('svg')) {
+      expect(svg.getAttribute('aria-hidden')).toBe('true')
+      expect(svg.getAttribute('focusable')).toBe('false')
+    }
+  })
+
   it('navigates without losing form input or filter selection and focuses the destination heading', async () => {
     await startup()
     await navigate('repairs')
-    expect(active()).toBe('Repairs')
+    expect(active()).toBe('Reparaciones')
     expect(document.activeElement?.id).toBe('repairs-title')
     expect(panel('dashboard').hidden).toBe(true)
     document.querySelector<HTMLElement>('.order-form-panel summary')!.click()
@@ -82,7 +118,7 @@ describe('authenticated application shell', () => {
 
   it('opens Repairs directly on refresh', async () => {
     await startup('#repairs')
-    expect(active()).toBe('Repairs')
+    expect(active()).toBe('Reparaciones')
     expect(panel('repairs').hidden).toBe(false)
     expect(panel('repairs').querySelector('#repair-order-form')).not.toBeNull()
     expect(panel('repairs').querySelector('.repair-card')).not.toBeNull()
@@ -104,7 +140,7 @@ describe('authenticated application shell', () => {
     history.back()
     await vi.waitFor(() => expect(active()).toBe('Dashboard'))
     history.forward()
-    await vi.waitFor(() => expect(active()).toBe('Repairs'))
+    await vi.waitFor(() => expect(active()).toBe('Reparaciones'))
   })
 
   it('skips to main content with a native button without changing the route or history', async () => {
@@ -122,7 +158,7 @@ describe('authenticated application shell', () => {
     expect(history.length).toBe(historyLength)
     expect(document.activeElement?.id).toBe('main-content')
     expect(location.hash).toBe('#repairs')
-    expect(active()).toBe('Repairs')
+    expect(active()).toBe('Reparaciones')
   })
 
   it('preserves creation, start and complete actions after navigation', async () => {
@@ -138,7 +174,7 @@ describe('authenticated application shell', () => {
     }
     document.querySelector('#repair-order-form')!.dispatchEvent(new Event('submit', { cancelable: true }))
     await vi.waitFor(() => expect(document.querySelectorAll('.repair-card')).toHaveLength(2))
-    expect(active()).toBe('Repairs')
+    expect(active()).toBe('Reparaciones')
     await navigate('dashboard')
     expect(document.querySelector('.dashboard-summary__total strong')?.textContent).toBe('2')
     expect(document.querySelector('.dashboard-metric--received dd')?.textContent).toBe('2')
@@ -159,7 +195,7 @@ describe('authenticated application shell', () => {
     document.querySelector<HTMLButtonElement>('#detail-complete')!.click()
     document.querySelector<HTMLButtonElement>('#confirm-complete')!.click()
     await vi.waitFor(() => expect(document.querySelector('.repair-card--completed')).not.toBeNull())
-    expect(active()).toBe('Repairs')
+    expect(active()).toBe('Reparaciones')
     await navigate('dashboard')
     expect(document.querySelector('.dashboard-metric--in-progress dd')?.textContent).toBe('0')
     expect(document.querySelector('.dashboard-metric--completed dd')?.textContent).toBe('1')
@@ -261,7 +297,7 @@ describe('authenticated application shell', () => {
     document.querySelector<HTMLAnchorElement>('.repair-detail-link')!.click()
     await vi.waitFor(() => expect(panel('repair-detail').hidden).toBe(false))
     expect(location.hash).toBe('#repairs/order-1')
-    expect(active()).toBe('Repairs')
+    expect(active()).toBe('Reparaciones')
     expect(document.activeElement?.id).toBe('repair-detail-title')
     history.back()
     await vi.waitFor(() => expect(panel('repairs').hidden).toBe(false))
@@ -482,7 +518,7 @@ describe('authenticated application shell', () => {
     await startup('#repairs/order-1')
     expect(document.querySelectorAll('main')).toHaveLength(1)
     expect(document.querySelectorAll('nav[aria-label="Application"]')).toHaveLength(1)
-    expect(document.querySelector('.app-shell__nav [aria-current="page"]')?.textContent).toBe('Repairs')
+    expect(document.querySelector('.app-shell__nav [aria-current="page"]')?.textContent).toBe('Reparaciones')
     expect(panel('repair-detail').querySelector('ol.repair-lifecycle')).not.toBeNull()
     expect(panel('repair-detail').querySelectorAll('.repair-lifecycle [tabindex], .repair-lifecycle button, .repair-lifecycle a')).toHaveLength(0)
     expect(panel('repair-detail').querySelectorAll('[aria-current="step"]')).toHaveLength(1)
