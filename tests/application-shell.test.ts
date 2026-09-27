@@ -10,6 +10,7 @@ const order = {
 let fetchMock: ReturnType<typeof vi.fn>
 
 beforeEach(() => {
+  vi.stubGlobal('innerWidth', 1280)
   vi.resetModules()
   vi.spyOn(window, 'addEventListener')
   window.history.replaceState(null, '', '/')
@@ -29,7 +30,7 @@ beforeEach(() => {
 })
 afterEach(() => {
   for (const [type, listener] of vi.mocked(window.addEventListener).mock.calls) {
-    if (type === 'hashchange') window.removeEventListener(type, listener)
+    if (type === 'hashchange' || type === 'resize') window.removeEventListener(type, listener)
   }
   vi.restoreAllMocks()
   vi.unstubAllGlobals()
@@ -79,7 +80,7 @@ describe('authenticated application shell', () => {
       for (const label of labels) expect(section.textContent).toContain(label)
     }
     const future = [...sidebar.querySelectorAll<HTMLButtonElement>('nav button')]
-    expect(future.map(button => button.firstChild?.textContent?.trim())).toEqual(['Clientes', 'Repuestos', 'Reportes', 'Configuración'])
+    expect(future.map(button => button.querySelector('.sidebar-label')?.textContent)).toEqual(['Clientes', 'Repuestos', 'Reportes', 'Configuración'])
     const hash = location.hash
     for (const button of future) {
       expect(button.disabled).toBe(true)
@@ -98,6 +99,99 @@ describe('authenticated application shell', () => {
       expect(svg.getAttribute('aria-hidden')).toBe('true')
       expect(svg.getAttribute('focusable')).toBe('false')
     }
+  })
+
+  it('renders future Topbar controls without requests or fictitious notifications', async () => {
+    await startup()
+    const topbar = document.querySelector('.app-topbar')!
+    const search = topbar.querySelector<HTMLInputElement>('#global-search')!
+    expect(search.disabled).toBe(true)
+    expect(topbar.querySelector('label[for="global-search"]')?.textContent).toContain('Buscar reparaciones')
+    expect(topbar.querySelector('#search-availability')?.textContent).toContain('Próximamente')
+    expect(topbar.querySelector('kbd')?.textContent).toBe('Ctrl+K')
+    const bell = topbar.querySelector<HTMLButtonElement>('button[aria-label="Notificaciones — próximamente"]')!
+    expect(bell.disabled).toBe(true)
+    expect(bell.textContent?.trim()).toBe('')
+    expect(topbar.querySelector('.app-sidebar__avatar')?.textContent).toBe('FA')
+    const requests = fetchMock.mock.calls.length
+    bell.click()
+    expect(fetchMock.mock.calls).toHaveLength(requests)
+  })
+
+  it('collapses desktop navigation while preserving routes, labels and logout', async () => {
+    await startup()
+    const toggle = document.querySelector<HTMLButtonElement>('#sidebar-toggle')!
+    expect(toggle.getAttribute('aria-expanded')).toBe('true')
+    expect(toggle.getAttribute('aria-controls')).toBe('app-sidebar')
+    toggle.click()
+    expect(toggle.getAttribute('aria-expanded')).toBe('false')
+    expect(document.querySelector('.app-shell--compact')).not.toBeNull()
+    expect(document.querySelector<HTMLAnchorElement>('a[href="#repairs"]')?.title).toBe('Reparaciones')
+    await navigate('repairs')
+    expect(active()).toBe('Reparaciones')
+    expect(document.querySelector('.app-shell--compact')).not.toBeNull()
+    expect(document.querySelector('#logout .sidebar-label')?.textContent).toBe('Cerrar sesión')
+    toggle.click()
+    expect(document.querySelector('.app-shell--compact')).toBeNull()
+    expect(toggle.getAttribute('aria-expanded')).toBe('true')
+  })
+
+  it('shows contextual page headings without duplicating detail headings', async () => {
+    await startup()
+    expect(panel('dashboard').querySelector('.app-shell__page-header')?.textContent).toContain('Resumen general del taller de reparaciones')
+    expect(document.querySelectorAll('#workshop-clock')).toHaveLength(1)
+    await navigate('repairs')
+    expect(panel('repairs').querySelector('h1')?.textContent).toBe('Reparaciones')
+    expect(panel('repairs').querySelector('.app-shell__page-header')?.textContent).toContain('Gestión y seguimiento de reparaciones')
+    document.querySelector<HTMLAnchorElement>('.repair-detail-link')!.click()
+    await vi.waitFor(() => expect(panel('repair-detail').hidden).toBe(false))
+    expect(panel('repair-detail').querySelectorAll('h1')).toHaveLength(1)
+    expect(document.activeElement?.id).toBe('repair-detail-title')
+  })
+
+  it('opens a mobile modal drawer, traps focus and closes by Escape, backdrop and close button', async () => {
+    vi.stubGlobal('innerWidth', 390)
+    await startup()
+    const toggle = document.querySelector<HTMLButtonElement>('#sidebar-toggle')!
+    const sidebar = document.querySelector<HTMLElement>('#app-sidebar')!
+    const close = sidebar.querySelector<HTMLButtonElement>('.sidebar-close')!
+    const workspace = document.querySelector<HTMLElement>('.app-shell__workspace')!
+    expect(sidebar.hidden).toBe(true)
+    expect(toggle.getAttribute('aria-expanded')).toBe('false')
+    for (const method of ['escape', 'backdrop', 'close']) {
+      toggle.click()
+      expect(sidebar.hidden).toBe(false)
+      expect(sidebar.getAttribute('aria-modal')).toBe('true')
+      expect(toggle.getAttribute('aria-expanded')).toBe('true')
+      expect(workspace.inert).toBe(true)
+      expect(document.activeElement).toBe(close)
+      close.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', shiftKey: true, bubbles: true, cancelable: true }))
+      expect(document.activeElement?.id).toBe('logout')
+      document.activeElement!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true }))
+      expect(document.activeElement).toBe(close)
+      if (method === 'escape') close.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+      else document.querySelector<HTMLElement>(method === 'backdrop' ? '.sidebar-backdrop' : '.sidebar-close')!.click()
+      expect(sidebar.hidden).toBe(true)
+      expect(workspace.inert).toBe(false)
+      expect(document.activeElement).toBe(toggle)
+    }
+  })
+
+  it('closes mobile navigation on selection and restores a usable layout on resize', async () => {
+    vi.stubGlobal('innerWidth', 390)
+    await startup()
+    const toggle = document.querySelector<HTMLButtonElement>('#sidebar-toggle')!
+    toggle.click()
+    await navigate('repairs')
+    expect(document.querySelector<HTMLElement>('#app-sidebar')!.hidden).toBe(true)
+    expect(document.activeElement?.id).toBe('repairs-title')
+    toggle.click()
+    vi.stubGlobal('innerWidth', 1280)
+    window.dispatchEvent(new Event('resize'))
+    expect(document.querySelector<HTMLElement>('#app-sidebar')!.hidden).toBe(false)
+    expect(document.querySelector('#app-sidebar')?.hasAttribute('aria-modal')).toBe(false)
+    expect(document.querySelector<HTMLElement>('.app-shell__workspace')!.inert).toBe(false)
+    expect(document.activeElement).toBe(toggle)
   })
 
   it('navigates without losing form input or filter selection and focuses the destination heading', async () => {

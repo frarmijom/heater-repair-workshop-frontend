@@ -839,13 +839,6 @@ body::before {
 .app-shell__main .request-state h1 { font-size: 2rem; }
 
 @media (max-width: 1000px) {
-  .app-shell { grid-template-columns: minmax(0, 1fr); }
-  .app-sidebar { position: static; height: auto; }
-  .app-shell__nav { grid-template-columns: repeat(auto-fit, minmax(min(100%, 10rem), 1fr)); align-items: start; }
-  .app-sidebar__blueprint { display: none; }
-  .app-shell__session { margin-top: 1rem; }
-  .app-shell__session button { width: auto; }
-  .app-shell__header { margin-bottom: 1rem; }
   .app-shell__main { padding: 1.5rem; }
 }
 
@@ -986,4 +979,45 @@ body::before {
   .login-screen__brand { margin: 0; }
   .login-screen__intro, .login-screen__technical, .login-screen__caption { display: none; }
   .login-screen__access { padding: 2.5rem 1.5rem; }
+}
+
+/* Topbar and contextual page heading. */
+.app-shell__workspace { min-width: 0; }
+.app-shell__main { max-width: none; }
+.app-topbar { display: flex; align-items: center; gap: 1rem; padding: 1rem 2rem; border-bottom: 1px solid var(--ui-border); background: var(--ui-surface); color: var(--ui-text-primary); }
+.app-topbar button, .sidebar-close { min-width: 44px; min-height: 44px; border: 1px solid var(--ui-border); border-radius: var(--ui-radius); background: transparent; color: inherit; font: inherit; cursor: pointer; }
+.app-topbar button:disabled { cursor: default; color: var(--ui-text-secondary); }
+.app-topbar svg { width: 1.5rem; height: 1.5rem; vertical-align: middle; }
+.app-topbar__search { flex: 1; min-width: 0; }
+.app-topbar__search label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+.app-topbar__search input { width: 100%; min-height: 44px; border: 1px solid var(--ui-border); border-radius: var(--ui-radius); padding: 0.75rem; background: var(--ui-background); color: var(--ui-text-secondary); font: inherit; font-size: 0.875rem; }
+.app-topbar__search > span { display: block; margin-top: 0.25rem; font-size: 0.6875rem; color: var(--ui-text-secondary); }
+.app-topbar :focus-visible { outline-color: var(--ui-focus); }
+.app-shell__page-header { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: var(--ui-space); color: var(--ui-text-primary); }
+.app-shell__page-header h1 { margin-bottom: 0.5rem; }
+.app-shell__page-header p { color: var(--ui-text-secondary); margin: 0; line-height: 1.6; }
+.page-header__context { min-width: 0; }
+.page-header__context:empty { display: none; }
+.sidebar-icon { width: 1.25rem; height: 1.25rem; vertical-align: middle; margin-right: 0.5rem; }
+.app-shell--compact { grid-template-columns: 5.5rem minmax(0, 1fr); }
+.app-shell--compact .app-sidebar { padding: 1rem 0.5rem; }
+.app-shell--compact .app-shell__header { justify-content: center; }
+.app-shell--compact .sidebar-label, .app-shell--compact .app-shell__brand, .app-shell--compact .app-sidebar__user p,
+.app-shell--compact .app-shell__nav h2, .app-shell--compact .app-shell__nav small { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+.app-shell--compact .app-sidebar__blueprint { display: none; }
+.app-shell--compact .app-shell__session { margin-top: auto; }
+.app-shell--compact .app-sidebar__user { justify-content: center; }
+.app-shell--compact .sidebar-icon { margin: 0; }
+.app-shell--compact .app-shell__nav a, .app-shell--compact .app-shell__nav button { text-align: center; }
+.sidebar-close { display: none; }
+@media (max-width: 700px) {
+  .app-shell { grid-template-columns: minmax(0, 1fr); }
+  .app-topbar { padding: 0.75rem 1rem; gap: 0.5rem; flex-wrap: wrap; }
+  .app-topbar__search { order: 1; flex-basis: 100%; }
+  .app-topbar > .app-sidebar__avatar { margin-left: auto; }
+  .app-sidebar { position: fixed; inset: 0 auto 0 0; width: min(19rem, calc(100% - 3rem)); height: 100dvh; z-index: 30; overscroll-behavior: contain; }
+  .sidebar-close { display: block; align-self: flex-end; margin-bottom: 1rem; }
+  .sidebar-backdrop { position: fixed; inset: 0; z-index: 20; background: rgb(11 29 44 / 60%); touch-action: none; }
+  .app-shell--drawer-open .app-shell__workspace { pointer-events: none; }
+  .app-shell__page-header { align-items: flex-start; flex-direction: column; }
 }

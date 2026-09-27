@@ -1,8 +1,9 @@
 import './style.css'
+import { generatePageHeaderHtml } from './components/page-header.ts'
 import { generateLoginScreenHtml, setupPasswordVisibility } from './components/login-screen.ts'
 import { checkSession, login, logout } from './services/auth-service.ts'
 import { SessionExpiredError, setSessionExpiredHandler } from './services/api.ts'
-import { generateApplicationShellHtml, updateShellDestination, selectedRepairId } from './components/application-shell.ts'
+import { generateApplicationShellHtml, updateShellDestination, selectedRepairId, setupSidebar } from './components/application-shell.ts'
 import { generateRepairDetailHtml } from './components/repair-detail.ts'
 import { generateRepairOrderCardHtml } from './components/repair-order-card.ts'
 import {
@@ -31,6 +32,8 @@ const pendingRepairActions = new Set<string>()
 let authenticated = false
 let viewGeneration = 0
 let clockIntervalId: number | undefined
+const sidebarState = { compact: false }
+let disposeSidebar: (() => void) | undefined
 
 const app = document.getElementById('app') as HTMLDivElement | null
 
@@ -215,17 +218,11 @@ function renderWorkshop(): void {
 
   renderApplicationContent(`
     <section data-destination="dashboard" aria-labelledby="dashboard-title">
-      <header class="app-shell__page-header">
-        <h1 id="dashboard-title" tabindex="-1">Dashboard</h1>
-        <p>Taller Fuego Sur</p>
-        <time id="workshop-clock" class="workshop__clock"></time>
-      </header>
+      ${generatePageHeaderHtml({ id: 'dashboard-title', title: 'Dashboard', description: 'Resumen general del taller de reparaciones', contextHtml: '<time id="workshop-clock" class="workshop__clock"></time>' })}
       ${generateWorkshopMonitorHtml(repairOrders)}
     </section>
     <section data-destination="repairs" aria-labelledby="repairs-title" hidden>
-      <header class="app-shell__page-header">
-        <h1 id="repairs-title" tabindex="-1">Repairs</h1>
-      </header>
+      ${generatePageHeaderHtml({ id: 'repairs-title', title: 'Reparaciones', description: 'Gestión y seguimiento de reparaciones' })}
       ${generateRepairOrderFormHtml()}
       <section aria-labelledby="repair-queue-title">
         <div class="repair-list__heading">
@@ -252,11 +249,14 @@ function renderWorkshop(): void {
 
 // Keep request feedback inside the authenticated shell, including Sign out.
 function renderApplicationContent(content: string): void {
+  disposeSidebar?.()
+  disposeSidebar = undefined
   if (!authenticated) {
     appContainer.innerHTML = content
     return
   }
   appContainer.innerHTML = generateApplicationShellHtml(content)
+  disposeSidebar = setupSidebar(appContainer, sidebarState)
   renderedDetailOrder = undefined
   updateRepairDetail()
   updateShellDestination(appContainer)
@@ -389,6 +389,9 @@ function updateRepairDetail(): void {
 }
 
 function showLogin(message = ''): void {
+  disposeSidebar?.()
+  disposeSidebar = undefined
+  sidebarState.compact = false
   authenticated = false
   viewGeneration++
   repairOrders = []
