@@ -10,7 +10,7 @@ interface FilterOption {
 }
 
 export const repairOrderFilterOptions: readonly FilterOption[] = [
-  { label: 'All', value: 'all' },
+  { label: 'Todas', value: 'all' },
   ...Object.values(RepairStatus).map(value => ({
     value, label: repairStatusPresentation[value].label,
   })),
@@ -22,6 +22,7 @@ export function isRepairOrderFilter(value: string): value is RepairOrderFilter {
 
 export function generateRepairOrderFiltersHtml(
   repairOrders: readonly RepairOrder[],
+  showCounts = true,
 ): string {
   return repairOrderFilterOptions
     .map(({ label, value }) => {
@@ -38,7 +39,7 @@ export function generateRepairOrderFiltersHtml(
           aria-pressed="${value === 'all'}"
         >
           <span>${label}</span>
-          <strong>${count}</strong>
+          ${showCounts ? `<strong>${count}</strong>` : ''}
         </button>
       `
     })

@@ -28,18 +28,18 @@ export function generateRepairOrderCardHtml(order: RepairOrder): string {
   const diagnosisHtml =
     order.diagnosis === null
       ? ''
-      : `<p class="repair-card__diagnosis"><strong>Diagnosis:</strong> ${escapeHtml(order.diagnosis)}</p>`
+      : `<p class="repair-card__diagnosis"><strong>Diagnóstico:</strong> ${escapeHtml(order.diagnosis)}</p>`
   const actionHtml =
     order.status === RepairStatus.RECEIVED
-      ? `<button type="button" data-repair-action="start" data-repair-order-id="${escapeHtml(order.id)}">Start repair</button>`
+      ? `<button type="button" data-repair-action="start" data-repair-order-id="${escapeHtml(order.id)}">Iniciar reparación</button>`
       : order.status === RepairStatus.IN_PROGRESS
-        ? `<button type="button" data-repair-action="complete" data-repair-order-id="${escapeHtml(order.id)}">Complete repair</button>`
+        ? `<button type="button" data-repair-action="complete" data-repair-order-id="${escapeHtml(order.id)}">Completar reparación</button>`
         : ''
 
   return `
     <article class="repair-card repair-card--${statusModifier}" data-order-id="${escapeHtml(order.id)}">
       <header class="repair-card__header">
-        <p class="repair-card__id">Repair order #${escapeHtml(order.id)}</p>
+        <p class="repair-card__id">Reparación #${escapeHtml(order.id)}</p>
         <h3>${escapeHtml(order.heaterBrand)} ${escapeHtml(order.heaterModel)}</h3>
         <p class="repair-card__customer">
           ${escapeHtml(order.customerName)} · ${escapeHtml(order.customerContact)}
@@ -51,17 +51,17 @@ export function generateRepairOrderCardHtml(order: RepairOrder): string {
       <dl class="repair-card__dates">
         <div>
           <dt>${repairStatusPresentation[RepairStatus.RECEIVED].label}</dt>
-          <dd>${formatRepairDateTime(order.receivedAt) ?? 'Date unavailable'}</dd>
+          <dd>${formatRepairDateTime(order.receivedAt) ?? 'Fecha no disponible'}</dd>
         </div>
         ${completedDateHtml}
       </dl>
       <div class="repair-card__actions">
         ${actionHtml}
-        <a class="repair-detail-link" href="#repairs/${escapeHtml(encodeURIComponent(order.id))}">View detail</a>
+        <a class="repair-detail-link" href="#repairs/${escapeHtml(encodeURIComponent(order.id))}">Ver detalle</a>
         <p class="repair-card__action-error" role="alert"></p>
       </div>
       <div class="repair-card__notes">
-        <p class="repair-card__issue"><strong>Reported issue:</strong> ${escapeHtml(order.reportedIssue)}</p>
+        <p class="repair-card__issue"><strong>Problema reportado:</strong> ${escapeHtml(order.reportedIssue)}</p>
         ${diagnosisHtml}
       </div>
     </article>

@@ -1101,3 +1101,67 @@ body::before {
   .dashboard-weekly li { grid-template-rows: auto 5rem auto; font-size: .6rem; }
   .dashboard-weekly-track > span { width: 75%; }
 }
+
+/* Repairs module shares HITO 03 surfaces, spacing and focus tokens. */
+.repairs-module { min-width: 0; color: var(--ui-text-primary); overflow-wrap: anywhere; }
+.repairs-capabilities { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1.25rem; }
+.repairs-surface { min-width: 0; margin: 0 0 1rem; padding: 1.25rem; background: var(--ui-surface); border: 1px solid var(--ui-border); border-radius: var(--ui-radius); }
+.repairs-module h2 { margin: 0 0 .75rem; font-size: 1.1rem; }
+.repairs-module p { line-height: 1.55; }
+.repairs-capabilities p, .repairs-empty, .repairs-breadcrumb { color: var(--ui-text-secondary); }
+.repairs-capability-icon { display: grid; place-items: center; width: 2.5rem; height: 2.5rem; margin-bottom: 1rem; border-radius: .6rem; color: var(--ui-accent); background: var(--ui-background); font-size: 1.75rem; }
+.repairs-module a { color: var(--ui-accent); text-underline-offset: .2rem; }
+.repairs-module a:focus-visible, .repairs-module button:focus-visible, .repairs-module input:focus-visible, .repairs-module textarea:focus-visible { outline: 2px solid var(--ui-focus); outline-offset: 3px; }
+.repairs-module .repairs-primary-action { display: inline-flex; min-height: 44px; align-items: center; padding: .5rem 1rem; border-radius: .4rem; background: var(--ui-accent); color: white; text-decoration: none; font-weight: 600; }
+.repairs-secondary-action { display: inline-flex; min-height: 44px; align-items: center; padding: .5rem 1rem; }
+.repairs-breadcrumb { display: flex; flex-wrap: wrap; gap: .35rem; align-items: center; margin-bottom: .75rem; font-size: .8rem; }
+.repairs-breadcrumb a { display: inline-flex; align-items: center; min-height: 32px; }
+.repairs-module .order-form-panel { max-width: 54rem; }
+.repairs-module .order-form { display: grid; grid-template-columns: minmax(0, 1fr); }
+.repair-form-group { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; min-width: 0; margin: 0; padding: .75rem 0 1rem; border: 0; border-bottom: 1px solid var(--ui-border); }
+.repair-form-group legend { font-weight: 650; padding: 0; }
+.repairs-module .order-form__actions { display: flex; flex-wrap: wrap; align-items: center; gap: .75rem; }
+.repairs-module .order-form__actions p { flex: 1 1 15rem; font-size: .8rem; }
+#repair-search-form fieldset { border: 0; padding: 0; margin: 1rem 0; min-width: 0; }
+#repair-search-form legend { font-size: .85rem; margin-bottom: .5rem; }
+.repairs-empty { padding: 1.5rem 1rem; text-align: center; }
+.repair-results { width: 100%; table-layout: fixed; border-collapse: collapse; text-align: left; font-size: .8rem; }
+.repair-results th, .repair-results td { padding: .65rem .5rem; border-bottom: 1px solid var(--ui-border); vertical-align: middle; }
+.repair-results thead { color: var(--ui-text-secondary); background: var(--ui-background); }
+.repair-results a { display: inline-flex; align-items: center; min-height: 32px; }
+.repair-results .repair-card__status { font-size: .7rem; }
+.repairs-module #diagnosis-form { display: grid; gap: .75rem; max-width: 42rem; }
+.repairs-module #diagnosis-form button { justify-self: start; }
+.repairs-module .repair-detail__information { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
+.repairs-module .repair-detail__information dt { color: var(--ui-text-secondary); font-size: .8rem; margin-bottom: .25rem; }
+.repairs-module .repair-detail__information dd { margin: 0; white-space: pre-wrap; }
+.repairs-module #complete-confirmation { padding: 1rem; border: 1px solid var(--ui-border); border-radius: .5rem; background: var(--ui-background); }
+@media (max-width: 900px) {
+  .repair-results, .repair-results tbody { display: block; }
+  .repair-results thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+  .repair-results tr { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); border-bottom: 1px solid var(--ui-border); padding: .5rem 0; }
+  .repair-results tbody th, .repair-results td { display: block; min-width: 0; border: 0; }
+  .repair-results [data-label]::before { content: attr(data-label); display: block; font-size: .7rem; font-weight: 400; color: var(--ui-text-secondary); margin-bottom: .25rem; }
+}
+@media (max-width: 600px) {
+  .repairs-capabilities, .repair-form-group, .repairs-module .repair-detail__information { grid-template-columns: minmax(0, 1fr); }
+  .repairs-surface { padding: 1rem; }
+  .repairs-module .repair-filters { display: grid; grid-template-columns: minmax(0, 1fr); }
+  .repairs-module .order-form__actions { align-items: stretch; flex-direction: column; }
+  .repairs-module .order-form__actions p { flex: auto; }
+}
+/* Override the HITO 02 form/action palette only inside Repairs. */
+.repairs-module button:not(.filter-button) { min-height: 44px; padding: .6rem 1rem; border: 1px solid var(--ui-accent); border-radius: .4rem; color: white; background: var(--ui-accent); font: inherit; font-weight: 600; box-shadow: none; cursor: pointer; }
+.repairs-module button:not(.filter-button):hover { background: var(--ui-navy); border-color: var(--ui-navy); }
+.repairs-module button:disabled { opacity: .65; cursor: wait; }
+.repairs-module .filter-button { color: var(--ui-text-primary); border-color: var(--ui-border); background: var(--ui-surface); }
+.repairs-module .filter-button[aria-pressed='true'] { color: var(--ui-accent); border-color: var(--ui-accent); background: var(--ui-background); }
+.repairs-module .form-field label { color: var(--ui-text-primary); }
+.repairs-module .form-field input, .repairs-module .form-field textarea, .repairs-module #repair-diagnosis { border: 1px solid var(--ui-border); border-radius: .4rem; color: var(--ui-text-primary); background: var(--ui-surface); font: inherit; }
+.repairs-module .form-field input:focus, .repairs-module .form-field textarea:focus { border-color: var(--ui-focus); box-shadow: none; }
+.repairs-module .form-field [aria-invalid='true'] { border-color: #a23529; }
+.repairs-module .order-form__actions p { color: var(--ui-text-secondary); }
+.repairs-module .order-form__actions .form-submit-status--error { color: #a23529; }
+.repairs-module .repair-lifecycle li { background: var(--ui-background); border-color: var(--ui-border); border-radius: .4rem; }
+.repairs-module .repair-lifecycle li[aria-current='step'] { border-color: var(--ui-accent); }
+.repairs-module #cancel-complete { background: var(--ui-surface); color: var(--ui-accent); }

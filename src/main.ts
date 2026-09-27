@@ -3,9 +3,9 @@ import { generatePageHeaderHtml } from './components/page-header.ts'
 import { generateLoginScreenHtml, setupPasswordVisibility } from './components/login-screen.ts'
 import { checkSession, login, logout } from './services/auth-service.ts'
 import { SessionExpiredError, setSessionExpiredHandler } from './services/api.ts'
-import { generateApplicationShellHtml, updateShellDestination, selectedRepairId, setupSidebar } from './components/application-shell.ts'
+import { generateApplicationShellHtml, updateShellDestination, selectedRepairId, selectedDestination, setupSidebar } from './components/application-shell.ts'
 import { generateRepairDetailHtml } from './components/repair-detail.ts'
-import { generateRepairOrderCardHtml } from './components/repair-order-card.ts'
+import { generateRepairResultsHtml } from './components/repair-results.ts'
 import {
   generateRepairOrderFormHtml,
   setupRepairOrderForm,
@@ -27,6 +27,14 @@ import {
 
 let repairOrders: RepairOrder[] = []
 let selectedFilter: RepairOrderFilter = 'all'
+let resultFilter: RepairOrderFilter = 'all'
+let hasSearched = false
+let searching = false
+let collectionLoaded = false
+let collectionPending: Promise<boolean> | undefined
+let collectionError = ''
+let collectionRevision = 0
+
 let renderedDetailOrder: RepairOrder | undefined
 const pendingRepairActions = new Set<string>()
 let authenticated = false
@@ -46,7 +54,7 @@ const appContainer: HTMLDivElement = app
 function getErrorMessage(error: unknown): string {
   return error instanceof Error
     ? error.message
-    : 'An unexpected error occurred while loading repair orders.'
+    : 'No se pudieron cargar las reparaciones.'
 }
 
 function showLoadingState(): void {
@@ -54,8 +62,8 @@ function showLoadingState(): void {
     <${authenticated ? 'div' : 'main'} class="request-state" aria-live="polite" aria-busy="true">
       <span class="request-state__spinner" aria-hidden="true"></span>
       <div>
-        <p>Workshop API</p>
-        <h1>Loading workshop…</h1>
+        <p>Taller</p>
+        <h1>Cargando taller…</h1>
       </div>
     </${authenticated ? 'div' : 'main'}>
   `)
@@ -66,10 +74,10 @@ function showErrorState(error: unknown): void {
     <${authenticated ? 'div' : 'main'} class="request-state request-state--error" role="alert">
       <span class="request-state__mark" aria-hidden="true">!</span>
       <div>
-        <p>Loading error</p>
-        <h1>Repair orders are unavailable.</h1>
+        <p>Error de carga</p>
+        <h1>Las reparaciones no están disponibles.</h1>
         <p id="load-error-message" class="request-state__message"></p>
-        <button id="retry-load" type="button">Try again</button>
+        <button id="retry-load" type="button">Reintentar</button>
       </div>
     </${authenticated ? 'div' : 'main'}>
   `)
@@ -131,7 +139,10 @@ async function addRepairOrder(payload: RepairOrderFormPayload): Promise<void> {
     const createdOrder = await createRepairOrder(payload)
     if (!authenticated || generation !== viewGeneration) return
     repairOrders = [...repairOrders, createdOrder]
-    renderWorkshop()
+    collectionRevision++
+    refreshDataViews()
+    appContainer.querySelector<HTMLElement>('#repair-action-status')!.textContent = 'Reparación creada correctamente.'
+    if (selectedDestination() === 'repair-new') window.location.hash = `#repairs/${encodeURIComponent(createdOrder.id)}`
   } catch (error: unknown) {
     throw new Error(getErrorMessage(error))
   }
@@ -142,109 +153,181 @@ function replaceRepairOrder(updatedOrder: RepairOrder): void {
   repairOrders = repairOrders.map((order) =>
     order.id === updatedOrder.id ? updatedOrder : order,
   )
-  renderWorkshop()
+  collectionRevision++
+  refreshDataViews()
 }
 
-function setupRepairOrderActions(): void {
-  const repairList = appContainer.querySelector<HTMLElement>('#repair-order-list')
-  if (repairList === null) {
-    throw new Error('The repair order list was not found.')
-  }
+function queryFeedbackHtml(): string {
+  return collectionError
+    ? `<div class="request-state request-state--error" role="alert"><p>No se pudieron cargar las reparaciones.</p><button id="retry-load" type="button">Reintentar</button></div>`
+    : '<div class="request-state" role="status" aria-busy="true"><p>Cargando reparaciones…</p></div>'
+}
 
-  repairList.addEventListener('click', (event: MouseEvent) => {
-    const target = event.target
-    if (!(target instanceof HTMLButtonElement)) {
-      return
+// One collection request per session at a time. Mutations completed while a GET is
+// pending take precedence over that GET's snapshot.
+async function ensureCollection(): Promise<boolean> {
+  if (collectionLoaded) return true
+  if (collectionPending) return collectionPending
+  const generation = viewGeneration
+  const revision = collectionRevision
+  collectionError = ''
+  const pending = (async () => {
+    try {
+      const orders = await loadRepairOrders()
+      if (!authenticated || generation !== viewGeneration) return false
+      repairOrders = revision === collectionRevision ? orders : [
+        ...orders.filter(order => !repairOrders.some(current => current.id === order.id)), ...repairOrders,
+      ]
+      collectionLoaded = true
+      return true
+    } catch (error: unknown) {
+      if (!(error instanceof SessionExpiredError) && authenticated && generation === viewGeneration) collectionError = getErrorMessage(error)
+      return false
+    } finally {
+      if (generation === viewGeneration) collectionPending = undefined
     }
+  })()
+  collectionPending = pending
+  return pending
+}
 
-    const action = target.dataset.repairAction
-    const orderId = target.dataset.repairOrderId
-    if ((action !== 'start' && action !== 'complete') || orderId === undefined) {
-      return
-    }
-
-    window.location.hash = `#repairs/${encodeURIComponent(orderId)}`
-
+function refreshSearchResults(): void {
+  const results = appContainer.querySelector<HTMLElement>('#repair-search-results')
+  if (!results) return
+  results.hidden = !hasSearched
+  const initial = appContainer.querySelector<HTMLElement>('#repair-search-initial')!
+  initial.hidden = hasSearched || searching
+  if (!hasSearched) { results.innerHTML = ''; return }
+  appContainer.querySelectorAll<HTMLButtonElement>('[data-repair-status]').forEach(button => {
+    const filter = button.dataset.repairStatus
+    let count = button.querySelector('strong')
+    if (!count) { count = document.createElement('strong'); button.append(count) }
+    count.textContent = String(repairOrders.filter(order => filter === 'all' || order.status === filter).length)
   })
+  const visible = repairOrders.filter(order => resultFilter === 'all' || order.status === resultFilter)
+  results.innerHTML = `<div class="repair-list__heading"><h2 id="repair-results-title" tabindex="-1">Resultados</h2><p id="visible-order-count" role="status">${visible.length} reparaciones</p></div><div id="repair-order-list">${generateRepairResultsHtml(visible)}</div>`
 }
 
-function setupRepairOrderFilters(): void {
-  const repairList = appContainer.querySelector<HTMLElement>('#repair-order-list')
-  const visibleCount = appContainer.querySelector<HTMLElement>('#visible-order-count')
-  const emptyMessage = appContainer.querySelector<HTMLElement>('#repair-order-empty')
-  const filterButtons = appContainer.querySelectorAll<HTMLButtonElement>(
-    '[data-repair-status]',
-  )
-
-  if (repairList === null || visibleCount === null || emptyMessage === null) {
-    throw new Error('The repair order list controls were not found.')
+function refreshDataViews(): void {
+  const previousFocus = document.activeElement
+  const dashboard = appContainer.querySelector<HTMLElement>('#dashboard-content')
+  if (dashboard && collectionLoaded) dashboard.innerHTML = generateWorkshopMonitorHtml(repairOrders)
+  refreshSearchResults()
+  updateRepairDetail()
+  if (previousFocus instanceof HTMLElement && previousFocus !== document.body && !previousFocus.isConnected) {
+    updateShellDestination(appContainer, true)
   }
+}
 
-  const renderFilteredOrders = (filter: RepairOrderFilter): void => {
-    selectedFilter = filter
-    const visibleOrders = repairOrders.filter(
-      ({ status }) => filter === 'all' || status === filter,
-    )
-    repairList.innerHTML = visibleOrders.map(generateRepairOrderCardHtml).join('')
-    visibleCount.textContent = `${visibleOrders.length} orders`
-    emptyMessage.hidden = visibleOrders.length > 0
-    emptyMessage.textContent = repairOrders.length === 0
-      ? 'There are no repair orders. Use Add repair order to create one.'
-      : 'There are no repairs matching this filter.'
-
-    filterButtons.forEach((button) => {
-      button.setAttribute(
-        'aria-pressed',
-        String(button.dataset.repairStatus === filter),
-      )
-    })
-  }
-
-  renderFilteredOrders(selectedFilter)
-
-  filterButtons.forEach((button) => {
+function setupRepairSearch(): void {
+  const form = appContainer.querySelector<HTMLFormElement>('#repair-search-form')!
+  const buttons = form.querySelectorAll<HTMLButtonElement>('[data-repair-status]')
+  buttons.forEach(button => {
+    button.setAttribute('aria-pressed', String(button.dataset.repairStatus === selectedFilter))
     button.addEventListener('click', () => {
       const filter = button.dataset.repairStatus
-      if (filter !== undefined && isRepairOrderFilter(filter)) {
-        renderFilteredOrders(filter)
+      if (filter && isRepairOrderFilter(filter)) {
+        selectedFilter = filter
+        buttons.forEach(control => control.setAttribute('aria-pressed', String(control === button)))
       }
     })
+  })
+  form.addEventListener('submit', async event => {
+    event.preventDefault()
+    if (searching) return
+    const generation = viewGeneration
+    const filter = selectedFilter
+    searching = true
+    hasSearched = false
+    const submit = form.querySelector<HTMLButtonElement>('button[type="submit"]')!
+    submit.disabled = true
+    buttons.forEach(button => { button.disabled = true })
+    form.setAttribute('aria-busy', 'true')
+    const feedback = appContainer.querySelector<HTMLElement>('#repair-search-feedback')!
+    feedback.textContent = 'Buscando reparaciones…'
+    appContainer.querySelector<HTMLElement>('#repair-search-error')!.textContent = ''
+    refreshSearchResults()
+    const loaded = await ensureCollection()
+    if (!authenticated || generation !== viewGeneration) return
+    searching = false
+    submit.disabled = false
+    buttons.forEach(button => { button.disabled = false })
+    form.removeAttribute('aria-busy')
+    feedback.textContent = ''
+    if (loaded) {
+      hasSearched = true
+      resultFilter = filter
+      refreshDataViews()
+      if (selectedDestination() === 'repair-search') appContainer.querySelector<HTMLElement>('#repair-results-title')?.focus()
+    } else {
+      appContainer.querySelector<HTMLElement>('#repair-search-error')!.textContent = collectionError
+      refreshSearchResults()
+    }
   })
 }
 
 function renderWorkshop(): void {
   if (!authenticated) return
-  const previousFocus = document.activeElement
-
   renderApplicationContent(`
     <section data-destination="dashboard" aria-labelledby="dashboard-title">
       ${generatePageHeaderHtml({ id: 'dashboard-title', title: 'Dashboard', description: 'Resumen general del taller de reparaciones', contextHtml: '<time id="workshop-clock" class="workshop__clock"></time>' })}
-      ${generateWorkshopMonitorHtml(repairOrders)}
+      <div id="dashboard-content"></div>
     </section>
-    <section data-destination="repairs" aria-labelledby="repairs-title" hidden>
-      ${generatePageHeaderHtml({ id: 'repairs-title', title: 'Reparaciones', description: 'Gestión y seguimiento de reparaciones' })}
+    <section class="repairs-module" lang="es" data-destination="repairs" aria-labelledby="repairs-title" hidden>
+      ${generatePageHeaderHtml({ id: 'repairs-title', title: 'Reparaciones', description: 'Gestión de las reparaciones del taller' })}
+      <div class="repairs-capabilities">
+        <section class="repairs-surface"><span class="repairs-capability-icon" aria-hidden="true">＋</span><h2>Nueva reparación</h2><p>Registrar un nuevo ingreso de calefont al taller.</p><a class="repairs-primary-action" href="#repairs/new">Crear reparación →</a></section>
+        <section class="repairs-surface"><span class="repairs-capability-icon" aria-hidden="true">⌕</span><h2>Consultar reparaciones</h2><p>Buscar y revisar reparaciones existentes.</p><a class="repairs-primary-action" href="#repairs/search">Ir a búsqueda →</a></section>
+      </div>
+    </section>
+    <section class="repairs-module" lang="es" data-destination="repair-new" aria-labelledby="repair-new-title" hidden>
+      <nav class="repairs-breadcrumb" aria-label="Ruta de navegación"><a href="#repairs">Reparaciones</a><span aria-hidden="true"> / </span><span aria-current="page">Nueva reparación</span></nav>
+      ${generatePageHeaderHtml({ id: 'repair-new-title', title: 'Nueva reparación', description: 'Registra el ingreso de un calefont al taller.' })}
       ${generateRepairOrderFormHtml()}
-      <section aria-labelledby="repair-queue-title">
-        <div class="repair-list__heading">
-          <h2 id="repair-queue-title">Repair work queue</h2>
-          <p id="visible-order-count" class="workshop__count" aria-live="polite"></p>
-        </div>
-        <nav class="repair-filters" aria-label="Repair order status filters">
-          ${generateRepairOrderFiltersHtml(repairOrders)}
-        </nav>
-        <p id="repair-order-empty" class="repair-list__empty" role="status" hidden></p>
-        <div id="repair-order-list" class="repair-list"></div>
-      </section>
     </section>
-    <section class="repair-detail" data-destination="repair-detail" aria-labelledby="repair-detail-title" hidden></section>
+    <section class="repairs-module" lang="es" data-destination="repair-search" aria-labelledby="repair-search-title" hidden>
+      <nav class="repairs-breadcrumb" aria-label="Ruta de navegación"><a href="#repairs">Reparaciones</a><span aria-hidden="true"> / </span><span aria-current="page">Consultar</span></nav>
+      ${generatePageHeaderHtml({ id: 'repair-search-title', title: 'Consultar reparaciones', description: 'Busca y filtra reparaciones por los criterios disponibles.' })}
+      <form id="repair-search-form" class="repairs-surface" aria-labelledby="repair-query-title">
+        <h2 id="repair-query-title">Buscar reparaciones</h2>
+        <fieldset><legend>Estado de la reparación</legend><div class="repair-filters">${generateRepairOrderFiltersHtml([], false)}</div></fieldset>
+        <button type="submit">Buscar</button><p id="repair-search-feedback" role="status"></p><p id="repair-search-error" role="alert"></p>
+      </form>
+      <div id="repair-search-initial" class="repairs-empty"><h2>Selecciona un criterio de consulta</h2><p>Utiliza los filtros disponibles y pulsa Buscar para consultar reparaciones.</p></div>
+      <section id="repair-search-results" class="repairs-surface" aria-labelledby="repair-results-title" hidden></section>
+    </section>
+    <section class="repair-detail repairs-module" lang="es" data-destination="repair-detail" aria-labelledby="repair-detail-title" hidden></section>
   `)
   startClock()
   setupRepairOrderForm(appContainer, addRepairOrder)
-  setupRepairOrderFilters()
-  setupRepairOrderActions()
-  if (previousFocus instanceof HTMLElement && previousFocus !== document.body && !previousFocus.isConnected) {
-    updateShellDestination(appContainer, true)
+  setupRepairSearch()
+  refreshDataViews()
+}
+
+async function loadDestination(focusHeading = false): Promise<void> {
+  const destination = selectedDestination()
+  const needsCollection = destination === 'dashboard' || (destination === 'repair-detail' && !repairOrders.some(order => order.id === selectedRepairId()))
+  updateRepairDetail()
+  updateShellDestination(appContainer, focusHeading)
+  if (!needsCollection || collectionLoaded) return
+  const generation = viewGeneration
+  const container = appContainer.querySelector<HTMLElement>(destination === 'dashboard' ? '#dashboard-content' : '[data-destination="repair-detail"]')
+  if (container) {
+    container.innerHTML = (destination === 'repair-detail' ? '<h1 id="repair-detail-title" tabindex="-1">Detalle de reparación</h1>' : '') + queryFeedbackHtml()
+    if (destination === 'repair-detail') renderedDetailOrder = undefined
+    updateShellDestination(appContainer, focusHeading)
   }
+  const loaded = await ensureCollection()
+  if (!authenticated || generation !== viewGeneration) return
+  refreshDataViews()
+  if (!loaded && selectedDestination() === destination && container?.isConnected) {
+    container.innerHTML = (destination === 'repair-detail' ? '<h1 id="repair-detail-title" tabindex="-1">Detalle de reparación</h1>' : '') + queryFeedbackHtml()
+    container.querySelector('#retry-load')?.addEventListener('click', () => {
+      collectionError = ''
+      void loadDestination(true)
+    })
+  }
+  if (selectedDestination() === destination) updateShellDestination(appContainer, focusHeading)
 }
 
 // Keep request feedback inside the authenticated shell, including Sign out.
@@ -273,15 +356,14 @@ function renderApplicationContent(content: string): void {
       if (error instanceof SessionExpiredError) return
       button.disabled = false
       const message = appContainer.querySelector<HTMLElement>('#logout-error')
-      if (message) message.textContent = 'Unable to complete the request.'
+      if (message) message.textContent = 'No se pudo completar la solicitud.'
     }
   })
 }
 
 window.addEventListener('hashchange', () => {
   if (authenticated) {
-    updateRepairDetail()
-    updateShellDestination(appContainer, true)
+    void loadDestination(true)
   }
 })
 
@@ -290,6 +372,7 @@ function updateRepairDetail(): void {
   const id = selectedRepairId()
   if (!container || id === null) return
   const order = repairOrders.find(repair => repair.id === id)
+  if (!order && !collectionLoaded) { renderedDetailOrder = undefined; return }
   if (order && renderedDetailOrder === order && container.childElementCount > 0) return
   renderedDetailOrder = order
   container.innerHTML = generateRepairDetailHtml(order)
@@ -311,7 +394,7 @@ function updateRepairDetail(): void {
     if (cancel) cancel.disabled = pending
     actions.setAttribute('aria-busy', String(pending))
     form?.setAttribute('aria-busy', String(pending))
-    button.textContent = pending ? (input ? 'Starting repair…' : 'Completing repair…') : idleLabel
+    button.textContent = pending ? (input ? 'Iniciando reparación…' : 'Completando reparación…') : idleLabel
   }
   const showConfirmation = (show: boolean, moveFocus = true): void => {
     if (!opener || !confirmation || !cancel) return
@@ -343,7 +426,7 @@ function updateRepairDetail(): void {
     if (input) {
       input.setAttribute('aria-invalid', String(!diagnosis))
       if (!diagnosis) {
-        errorElement.textContent = 'A diagnosis is required to start the repair.'
+        errorElement.textContent = 'Ingresa un diagnóstico para iniciar la reparación.'
         input.focus()
         return
       }
@@ -356,7 +439,7 @@ function updateRepairDetail(): void {
       pendingRepairActions.delete(order.id)
       replaceRepairOrder(updated)
       appContainer.querySelector<HTMLElement>('#repair-action-status')!.textContent = input
-        ? 'Repair started successfully.' : 'Repair completed successfully.'
+        ? 'Reparación iniciada correctamente.' : 'Reparación completada correctamente.'
       if (selectedRepairId() === order.id) appContainer.querySelector<HTMLElement>('#repair-detail-title')?.focus()
     } catch (error: unknown) {
       if (generation !== viewGeneration) return
@@ -396,6 +479,13 @@ function showLogin(message = ''): void {
   viewGeneration++
   repairOrders = []
   selectedFilter = 'all'
+  resultFilter = 'all'
+  hasSearched = false
+  searching = false
+  collectionLoaded = false
+  collectionPending = undefined
+  collectionError = ''
+  collectionRevision = 0
   pendingRepairActions.clear()
   renderedDetailOrder = undefined
   if (clockIntervalId !== undefined) window.clearInterval(clockIntervalId)
@@ -434,7 +524,7 @@ function showLogin(message = ''): void {
   })
 }
 
-setSessionExpiredHandler(() => showLogin(authenticated ? 'Your session has expired. Please sign in again.' : ''))
+setSessionExpiredHandler(() => showLogin(authenticated ? 'Tu sesión ha expirado. Inicia sesión nuevamente.' : ''))
 
 async function initializeApplication(): Promise<void> {
   const generation = ++viewGeneration
@@ -443,11 +533,8 @@ async function initializeApplication(): Promise<void> {
     await checkSession()
     if (generation !== viewGeneration) return
     authenticated = true
-    showLoadingState()
-    const orders = await loadRepairOrders()
-    if (generation !== viewGeneration || !authenticated) return
-    repairOrders = orders
     renderWorkshop()
+    await loadDestination()
   } catch (error: unknown) {
     if (error instanceof SessionExpiredError || generation !== viewGeneration) return
     showErrorState(error)

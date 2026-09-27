@@ -4,7 +4,7 @@ import { generateHeaterBlueprintHtml } from './heater-blueprint.ts'
 export function generateApplicationShellHtml(content: string): string {
   return `
     <div class="app-shell">
-      <button class="app-shell__skip" type="button">Skip to main content</button>
+      <button class="app-shell__skip" type="button">Ir al contenido principal</button>
       <aside id="app-sidebar" class="app-sidebar" lang="es" aria-label="Panel del taller">
         <button class="sidebar-close" type="button" aria-label="Cerrar panel lateral">×</button>
         <header class="app-shell__header">
@@ -37,13 +37,13 @@ export function generateApplicationShellHtml(content: string): string {
             <p><strong>Franco Armijo</strong><span>Administrador</span></p>
           </div>
           <button id="logout" type="button"><svg class="sidebar-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true" focusable="false"><path d="M10 4H4v16h6m4-12 4 4-4 4m-6-4h10"/></svg><span class="sidebar-label">Cerrar sesión</span></button>
-          <p id="logout-error" role="alert" lang="en"></p>
+          <p id="logout-error" role="alert" lang="es"></p>
         </div>
       </aside>
       <div class="sidebar-backdrop" hidden></div>
       <div class="app-shell__workspace">
       ${generateTopbarHtml()}
-      <main id="main-content" class="workshop app-shell__main" tabindex="-1">
+      <main id="main-content" class="workshop app-shell__main" lang="es" tabindex="-1">
         <p id="repair-action-status" role="status"></p>
         ${content}
       </main>
@@ -54,18 +54,24 @@ export function generateApplicationShellHtml(content: string): string {
 
 export function selectedRepairId(): string | null {
   const match = /^#repairs\/([^/]+)$/.exec(window.location.hash)
-  if (!match) return null
+  if (!match || ['new', 'search'].includes(match[1]!)) return null
   try { return decodeURIComponent(match[1]) } catch { return null }
 }
 
+export function selectedDestination(): string {
+  if (window.location.hash === '#repairs/new') return 'repair-new'
+  if (window.location.hash === '#repairs/search') return 'repair-search'
+  if (selectedRepairId() !== null) return 'repair-detail'
+  return window.location.hash === '#repairs' ? 'repairs' : 'dashboard'
+}
+
 export function updateShellDestination(root: HTMLElement, focusHeading = false): void {
-  const detail = selectedRepairId() !== null
-  const destination = detail ? 'repair-detail' : window.location.hash === '#repairs' ? 'repairs' : 'dashboard'
-  if (!detail && window.location.hash !== `#${destination}`) {
-    window.history.replaceState(null, '', `#${destination}`)
+  const destination = selectedDestination()
+  if (destination === 'dashboard' && window.location.hash !== '#dashboard') {
+    window.history.replaceState(null, '', '#dashboard')
   }
   root.querySelectorAll<HTMLAnchorElement>('.app-shell__nav a').forEach(link => {
-    if (link.hash === `#${detail ? 'repairs' : destination}`) link.setAttribute('aria-current', 'page')
+    if (link.hash === `#${destination === 'dashboard' ? 'dashboard' : 'repairs'}`) link.setAttribute('aria-current', 'page')
     else link.removeAttribute('aria-current')
   })
   root.querySelectorAll<HTMLElement>('[data-destination]').forEach(panel => {

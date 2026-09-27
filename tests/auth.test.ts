@@ -116,7 +116,7 @@ describe('AUTH-01 browser flow', () => {
     expect(document.querySelector('#login-form button[type="submit"]')?.textContent).toBe('Iniciando sesión…')
     document.querySelector('form')!.dispatchEvent(new Event('submit', { cancelable: true }))
     expect(document.querySelector<HTMLButtonElement>('form button[type="submit"]')!.disabled).toBe(true)
-    await vi.waitFor(() => expect(document.querySelector('#login-error')!.textContent).toBe('Invalid credentials.'))
+    await vi.waitFor(() => expect(document.querySelector('#login-error')!.textContent).toBe('Credenciales incorrectas.'))
     expect(document.querySelector('#login-form')?.hasAttribute('aria-busy')).toBe(false)
     expect(document.querySelector<HTMLButtonElement>('#login-form button[type="submit"]')?.disabled).toBe(false)
     expect(requests.filter(url => url === '/api/auth/login')).toHaveLength(1)
@@ -145,10 +145,10 @@ describe('AUTH-01 browser flow', () => {
     authenticated = false
     const { loadRepairOrders } = await import('../src/services/repair-order-service.ts')
     requests = []
-    await expect(loadRepairOrders()).rejects.toThrow('Your session has expired.')
+    await expect(loadRepairOrders()).rejects.toThrow('Tu sesión ha expirado.')
     await waitLogin()
     expect(document.querySelector('.workshop')).toBeNull()
-    expect(document.querySelector('#login-error')!.textContent).toContain('session has expired')
+    expect(document.querySelector('#login-error')!.textContent).toContain('sesión ha expirado')
     expect(requests).toEqual(['/api/repair-orders'])
   })
 
@@ -165,7 +165,8 @@ describe('AUTH-01 browser flow', () => {
       }
       return original(url, init)
     })
-    document.querySelector<HTMLElement>('.order-form-panel summary')!.click()
+    location.hash = '#repairs/new'
+    await vi.waitFor(() => expect(document.querySelector<HTMLElement>('[data-destination="repair-new"]')!.hidden).toBe(false))
     for (const [id, value] of Object.entries({ 'customer-name': 'Late order', 'customer-phone': '+56911112222',
       'heater-brand': 'Bosch', 'heater-model': 'Therm', 'reported-issue': 'Turns off' })) {
       document.querySelector<HTMLInputElement>('#' + id)!.value = value
@@ -173,7 +174,7 @@ describe('AUTH-01 browser flow', () => {
     document.querySelector('#repair-order-form')!.dispatchEvent(new Event('submit', { cancelable: true }))
     await vi.waitFor(() => expect(complete).toBeDefined())
     document.querySelector<HTMLButtonElement>('#logout')!.click()
-    await waitLogin(); await submit(); await waitDashboard()
+    await waitLogin(); location.hash = '#dashboard'; await submit(); await waitDashboard()
     complete!(json({ id: 'stale', customerName: 'Late order', customerContact: '+56911112222',
       heaterBrand: 'Bosch', heaterModel: 'Therm', reportedIssue: 'Turns off', status: 'RECEIVED',
       receivedAt: '2026-01-01T00:00:00Z', diagnosis: null, completedAt: null }))
@@ -186,7 +187,7 @@ describe('AUTH-01 browser flow', () => {
     const { apiRequest } = await import('../src/services/api.ts')
     fetchMock.mockResolvedValueOnce(json({ headerName: 'X-CSRF-TOKEN', token: 'first' }))
       .mockResolvedValueOnce(json({ message: 'SQL secret /internal/path' }, 403))
-    await expect(apiRequest('/repair-orders', { method: 'POST', body: '{}' })).rejects.toThrow('Unable to complete the request.')
+    await expect(apiRequest('/repair-orders', { method: 'POST', body: '{}' })).rejects.toThrow('No se pudo completar la solicitud.')
     expect(fetchMock).toHaveBeenCalledTimes(2)
   })
 

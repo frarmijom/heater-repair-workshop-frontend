@@ -15,9 +15,9 @@ function render(repair: RepairOrder | undefined) {
 }
 describe('repair detail and factual lifecycle', () => {
   it.each([
-    [RepairStatus.RECEIVED, ['Current', 'Upcoming', 'Upcoming'], ['true', 'false', 'false']],
-    [RepairStatus.IN_PROGRESS, ['Reached', 'Current', 'Upcoming'], ['true', 'true', 'false']],
-    [RepairStatus.COMPLETED, ['Reached', 'Reached', 'Current'], ['true', 'true', 'true']],
+    [RepairStatus.RECEIVED, ['Actual', 'Pendiente', 'Pendiente'], ['true', 'false', 'false']],
+    [RepairStatus.IN_PROGRESS, ['Alcanzada', 'Actual', 'Pendiente'], ['true', 'true', 'false']],
+    [RepairStatus.COMPLETED, ['Alcanzada', 'Alcanzada', 'Actual'], ['true', 'true', 'true']],
   ] as const)('represents %s without inventing transition dates', (status, labels, reached) => {
     const root = render({ ...order, status, completedAt: '2026-09-27T12:00:00Z' })
     const stages = Array.from(root.querySelectorAll('.repair-lifecycle li'))
@@ -25,10 +25,10 @@ describe('repair detail and factual lifecycle', () => {
     expect(stages.map(stage => stage.getAttribute('data-reached'))).toEqual(reached)
     expect(root.querySelector('[aria-current="step"]')?.getAttribute('data-stage')).toBe(status)
     expect(root.querySelectorAll('[aria-current="step"]')).toHaveLength(1)
-    expect(stages[0].querySelector('small')?.textContent).toBe(formatRepairDateTime(order.receivedAt))
+    expect(stages[0].querySelector('small')?.textContent).toBe(formatRepairDateTime(order.receivedAt, 'es-CL'))
     expect(stages[1].querySelector('small')).toBeNull()
-    expect(stages[2].querySelector('small')?.textContent ?? null).toBe(status === RepairStatus.COMPLETED ? formatRepairDate('2026-09-27T12:00:00Z') : null)
-    expect(root.querySelector('button')?.textContent ?? null).toBe(status === RepairStatus.RECEIVED ? 'Start repair' : status === RepairStatus.IN_PROGRESS ? 'Complete repair' : null)
+    expect(stages[2].querySelector('small')?.textContent ?? null).toBe(status === RepairStatus.COMPLETED ? formatRepairDate('2026-09-27T12:00:00Z', 'es-CL') : null)
+    expect(root.querySelector('button')?.textContent ?? null).toBe(status === RepairStatus.RECEIVED ? 'Iniciar reparación' : status === RepairStatus.IN_PROGRESS ? 'Completar reparación' : null)
     expect(root.querySelector('button[data-repair-action]')?.getAttribute('data-repair-action') ?? null)
       .toBe(status === RepairStatus.RECEIVED ? 'start' : status === RepairStatus.IN_PROGRESS ? 'complete' : null)
   })
@@ -54,7 +54,7 @@ describe('repair detail and factual lifecycle', () => {
   })
   it('shows a safe missing-order message and a return link', () => {
     const root = render(undefined)
-    expect(root.textContent).toContain('Repair not found')
+    expect(root.textContent).toContain('Reparación no encontrada')
     expect(root.querySelector('a')?.getAttribute('href')).toBe('#repairs')
     expect(root.querySelector('button')).toBeNull()
   })

@@ -39,13 +39,27 @@ afterEach(() => {
 async function startup(hash = '') {
   window.history.replaceState(null, '', '/' + hash)
   await import('../src/main.ts')
-  await vi.waitFor(() => expect(document.querySelector('#workload-title')).not.toBeNull())
+  await vi.waitFor(() => expect(document.querySelector('#repair-new-title')).not.toBeNull())
+  if (!['#repairs', '#repairs/new', '#repairs/search'].includes(hash)) {
+    await vi.waitFor(() => expect(document.querySelector('#workload-title')).not.toBeNull())
+  }
 }
 const panel = (name: string) => document.querySelector<HTMLElement>(`[data-destination="${name}"]`)!
 const active = () => document.querySelector('.app-shell__nav [aria-current="page"]')?.textContent
 async function navigate(name: string) {
   document.querySelector<HTMLAnchorElement>(`.app-shell__nav a[href="#${name}"]`)!.click()
   await vi.waitFor(() => expect(panel(name).hidden).toBe(false))
+}
+
+async function route(hash: string, destination: string) {
+  location.hash = hash
+  await vi.waitFor(() => expect(panel(destination).hidden).toBe(false))
+}
+async function search(filter = 'all') {
+  await route('#repairs/search', 'repair-search')
+  document.querySelector<HTMLButtonElement>(`[data-repair-status="${filter}"]`)!.click()
+  document.querySelector('#repair-search-form')!.dispatchEvent(new Event('submit', { cancelable: true }))
+  await vi.waitFor(() => expect(document.querySelector('#repair-results-title')).not.toBeNull())
 }
 
 describe('authenticated application shell', () => {
@@ -167,7 +181,8 @@ describe('authenticated application shell', () => {
     expect(document.querySelectorAll('#workshop-clock')).toHaveLength(1)
     await navigate('repairs')
     expect(panel('repairs').querySelector('h1')?.textContent).toBe('Reparaciones')
-    expect(panel('repairs').querySelector('.app-shell__page-header')?.textContent).toContain('Gestión y seguimiento de reparaciones')
+    expect(panel('repairs').querySelector('.app-shell__page-header')?.textContent).toContain('Gestión de las reparaciones del taller')
+    await search()
     document.querySelector<HTMLAnchorElement>('.repair-detail-link')!.click()
     await vi.waitFor(() => expect(panel('repair-detail').hidden).toBe(false))
     expect(panel('repair-detail').querySelectorAll('h1')).toHaveLength(1)
@@ -225,8 +240,9 @@ describe('authenticated application shell', () => {
     expect(active()).toBe('Reparaciones')
     expect(document.activeElement?.id).toBe('repairs-title')
     expect(panel('dashboard').hidden).toBe(true)
-    document.querySelector<HTMLElement>('.order-form-panel summary')!.click()
+    await route('#repairs/new', 'repair-new')
     document.querySelector<HTMLInputElement>('#customer-name')!.value = 'Draft customer'
+    await route('#repairs/search', 'repair-search')
     document.querySelector<HTMLButtonElement>('[data-repair-status="IN_PROGRESS"]')!.click()
     expect(document.querySelectorAll('.repair-card')).toHaveLength(0)
     await navigate('dashboard')
@@ -239,8 +255,11 @@ describe('authenticated application shell', () => {
     await startup('#repairs')
     expect(active()).toBe('Reparaciones')
     expect(panel('repairs').hidden).toBe(false)
-    expect(panel('repairs').querySelector('#repair-order-form')).not.toBeNull()
-    expect(panel('repairs').querySelector('.repair-card')).not.toBeNull()
+    expect(panel('repairs').querySelector('#repair-order-form')).toBeNull()
+    expect(panel('repairs').querySelector('.repair-results')).toBeNull()
+    expect(panel('repairs').querySelector('a[href="#repairs/new"]')).not.toBeNull()
+    expect(panel('repairs').querySelector('a[href="#repairs/search"]')).not.toBeNull()
+    expect(fetchMock.mock.calls.some(([url]) => url === '/api/repair-orders')).toBe(false)
   })
 
   it('recovers unknown fragments on startup and subsequent navigation', async () => {
@@ -283,37 +302,34 @@ describe('authenticated application shell', () => {
   it('preserves creation, start and complete actions after navigation', async () => {
     await startup()
     await navigate('repairs')
-    const creation = document.querySelector<HTMLDetailsElement>('.order-form-panel')!
-    expect(creation.open).toBe(false)
-    creation.querySelector<HTMLElement>('summary')!.click()
-    expect(creation.open).toBe(true)
+    await route('#repairs/new', 'repair-new')
     for (const [id, value] of Object.entries({ 'customer-name': 'New Customer', 'customer-phone': '+56911112222',
       'heater-brand': 'Bosch', 'heater-model': 'Therm', 'reported-issue': 'Turns off' })) {
       document.querySelector<HTMLInputElement>('#' + id)!.value = value
     }
     document.querySelector('#repair-order-form')!.dispatchEvent(new Event('submit', { cancelable: true }))
-    await vi.waitFor(() => expect(document.querySelectorAll('.repair-card')).toHaveLength(2))
+    await vi.waitFor(() => expect(location.hash).toBe('#repairs/order-2'))
     expect(active()).toBe('Reparaciones')
     await navigate('dashboard')
     expect(document.querySelector('.dashboard-summary__total strong')?.textContent).toBe('2')
     expect(document.querySelector('.dashboard-metric--received dd')?.textContent).toBe('2')
     await navigate('repairs')
     const prompt = vi.spyOn(window, 'prompt')
-    document.querySelector<HTMLButtonElement>('[data-repair-order-id="order-1"][data-repair-action="start"]')!.click()
+    await route('#repairs/order-1', 'repair-detail')
     await vi.waitFor(() => expect(document.querySelector('#diagnosis-form')).not.toBeNull())
     document.querySelector<HTMLTextAreaElement>('#repair-diagnosis')!.value = 'Replace valve'
     document.querySelector('#diagnosis-form')!.dispatchEvent(new Event('submit', { cancelable: true }))
     expect(prompt).not.toHaveBeenCalled()
-    await vi.waitFor(() => expect(document.querySelector('[data-repair-order-id="order-1"][data-repair-action="complete"]')).not.toBeNull())
+    await vi.waitFor(() => expect(document.querySelector('#detail-complete')).not.toBeNull())
     await navigate('dashboard')
     expect(document.querySelector('.dashboard-metric--received dd')?.textContent).toBe('1')
     expect(document.querySelector('.dashboard-metric--in-progress dd')?.textContent).toBe('1')
     await navigate('repairs')
-    document.querySelector<HTMLButtonElement>('[data-repair-order-id="order-1"][data-repair-action="complete"]')!.click()
+    await route('#repairs/order-1', 'repair-detail')
     await vi.waitFor(() => expect(panel('repair-detail').hidden).toBe(false))
     document.querySelector<HTMLButtonElement>('#detail-complete')!.click()
     document.querySelector<HTMLButtonElement>('#confirm-complete')!.click()
-    await vi.waitFor(() => expect(document.querySelector('.repair-card--completed')).not.toBeNull())
+    await vi.waitFor(() => expect(panel('repair-detail').querySelector('[data-stage="COMPLETED"][aria-current="step"]')).not.toBeNull())
     expect(active()).toBe('Reparaciones')
     await navigate('dashboard')
     expect(document.querySelector('.dashboard-metric--in-progress dd')?.textContent).toBe('0')
@@ -353,42 +369,40 @@ describe('authenticated application shell', () => {
       ? Promise.resolve(json([order, { ...order, id: 'order-2', status: 'IN_PROGRESS' },
         { ...order, id: 'order-3', status: 'COMPLETED' }])) : original(url, init))
     await startup('#repairs')
+    await search(filter)
     const button = document.querySelector<HTMLButtonElement>(`[data-repair-status="${filter}"]`)!
-    button.focus()
-    button.click()
-    expect(Array.from(document.querySelectorAll('.repair-card'), row => row.getAttribute('data-order-id'))).toEqual(ids)
-    expect(document.querySelector('#visible-order-count')?.textContent).toBe(`${ids.length} orders`)
+    expect(Array.from(document.querySelectorAll('.repair-results tbody tr'), row => row.getAttribute('data-order-id'))).toEqual(ids)
+    expect(document.querySelector('#visible-order-count')?.textContent).toBe(`${ids.length} reparaciones`)
     expect(button.getAttribute('aria-pressed')).toBe('true')
-    expect(document.activeElement).toBe(button)
+    expect(document.activeElement?.id).toBe('repair-results-title')
     expect(document.querySelectorAll('.filter-button[aria-pressed="true"]')).toHaveLength(1)
     expect(Array.from(document.querySelectorAll('.filter-button strong'), count => count.textContent)).toEqual(['3', '1', '1', '1'])
-    expect(document.querySelector<HTMLElement>('#repair-order-empty')!.hidden).toBe(true)
+    expect(document.querySelector('#repair-order-empty')).toBeNull()
   })
 
   it('explains an empty collection and preserves access to creation', async () => {
     const original = fetchMock.getMockImplementation()!
     fetchMock.mockImplementation((url: string, init: RequestInit) => url === '/api/repair-orders'
       ? Promise.resolve(json([])) : original(url, init))
-    await startup('#repairs')
-    expect(document.querySelectorAll('.repair-card')).toHaveLength(0)
-    const empty = document.querySelector<HTMLElement>('#repair-order-empty')!
-    expect(empty.hidden).toBe(false)
-    expect(empty.textContent).toContain('There are no repair orders.')
-    document.querySelector<HTMLElement>('.order-form-panel summary')!.click()
-    expect(document.querySelector<HTMLDetailsElement>('.order-form-panel')!.open).toBe(true)
-    expect(document.querySelector('#repair-order-form')).not.toBeNull()
+    await startup('#repairs/search')
+    expect(document.querySelector('#repair-order-empty')).toBeNull()
+    await search()
+    expect(document.querySelectorAll('.repair-results tbody tr')).toHaveLength(0)
+    expect(document.querySelector('#repair-order-empty')?.textContent).toBe('No se encontraron reparaciones')
+    await navigate('repairs')
+    panel('repairs').querySelector<HTMLAnchorElement>('a[href="#repairs/new"]')!.click()
+    await vi.waitFor(() => expect(panel('repair-new').hidden).toBe(false))
+    expect(panel('repair-new').querySelector('#repair-order-form')).not.toBeNull()
   })
 
   it('distinguishes a filter with no results and restores the All queue', async () => {
-    await startup('#repairs')
-    document.querySelector<HTMLButtonElement>('[data-repair-status="COMPLETED"]')!.click()
-    const empty = document.querySelector<HTMLElement>('#repair-order-empty')!
-    expect(empty.hidden).toBe(false)
-    expect(empty.textContent).toBe('There are no repairs matching this filter.')
-    expect(document.querySelectorAll('.repair-card')).toHaveLength(0)
-    document.querySelector<HTMLButtonElement>('[data-repair-status="all"]')!.click()
-    expect(empty.hidden).toBe(true)
-    expect(document.querySelectorAll('.repair-card')).toHaveLength(1)
+    await startup('#repairs/search')
+    await search('COMPLETED')
+    expect(document.querySelector('#repair-order-empty')?.textContent).toBe('No se encontraron reparaciones')
+    expect(document.querySelectorAll('.repair-results tbody tr')).toHaveLength(0)
+    await search()
+    expect(document.querySelector('#repair-order-empty')).toBeNull()
+    expect(document.querySelectorAll('.repair-results tbody tr')).toHaveLength(1)
   })
 
   it('retains inline action errors and allows retrying the current action', async () => {
@@ -397,21 +411,22 @@ describe('authenticated application shell', () => {
     const original = fetchMock.getMockImplementation()!
     fetchMock.mockImplementation((url: string, init: RequestInit) => url.endsWith('/start')
       ? Promise.resolve(json({}, 500)) : original(url, init))
-    document.querySelector<HTMLButtonElement>('[data-repair-action="start"]')!.click()
+    await route('#repairs/order-1', 'repair-detail')
+    await vi.waitFor(() => expect(document.querySelector('#diagnosis-form')).not.toBeNull())
     await vi.waitFor(() => expect(document.querySelector('#diagnosis-form')).not.toBeNull())
     document.querySelector<HTMLTextAreaElement>('#repair-diagnosis')!.value = 'Replace valve'
     const button = document.querySelector<HTMLButtonElement>('#diagnosis-form button')!
     button.click()
     expect(prompt).not.toHaveBeenCalled()
-    await vi.waitFor(() => expect(document.querySelector('#detail-action-error')?.textContent).toBe('Unable to complete the request.'))
+    await vi.waitFor(() => expect(document.querySelector('#detail-action-error')?.textContent).toBe('No se pudo completar la solicitud.'))
     expect(button.disabled).toBe(false)
-    expect(document.querySelector('.repair-card--received')).not.toBeNull()
+    expect(panel('repair-detail').querySelector('[data-stage="RECEIVED"][aria-current="step"]')).not.toBeNull()
   })
 
 
   it('opens detail with a native link, preserves the filter and supports Back/Forward', async () => {
     await startup('#repairs')
-    document.querySelector<HTMLButtonElement>('[data-repair-status="RECEIVED"]')!.click()
+    await search('RECEIVED')
     const requestCount = fetchMock.mock.calls.length
     document.querySelector<HTMLAnchorElement>('.repair-detail-link')!.click()
     await vi.waitFor(() => expect(panel('repair-detail').hidden).toBe(false))
@@ -419,10 +434,10 @@ describe('authenticated application shell', () => {
     expect(active()).toBe('Reparaciones')
     expect(document.activeElement?.id).toBe('repair-detail-title')
     history.back()
-    await vi.waitFor(() => expect(panel('repairs').hidden).toBe(false))
+    await vi.waitFor(() => expect(panel('repair-search').hidden).toBe(false))
     history.forward()
     await vi.waitFor(() => expect(panel('repair-detail').hidden).toBe(false))
-    document.querySelector<HTMLAnchorElement>('.repair-detail > a')!.click()
+    document.querySelector<HTMLAnchorElement>('.repair-detail .repairs-breadcrumb a')!.click()
     await vi.waitFor(() => expect(panel('repairs').hidden).toBe(false))
     expect(document.querySelector('[data-repair-status="RECEIVED"]')?.getAttribute('aria-pressed')).toBe('true')
     expect(fetchMock.mock.calls).toHaveLength(requestCount)
@@ -433,7 +448,7 @@ describe('authenticated application shell', () => {
     expect(panel('repair-detail').hidden).toBe(false)
     expect(document.querySelector('#repair-detail-title')?.textContent).toContain('order-1')
     location.hash = '#repairs/missing'
-    await vi.waitFor(() => expect(document.querySelector('#repair-detail-title')?.textContent).toBe('Repair not found'))
+    await vi.waitFor(() => expect(document.querySelector('#repair-detail-title')?.textContent).toBe('Reparación no encontrada'))
     expect(document.querySelector('#diagnosis-form')).toBeNull()
     location.hash = '#repairs/%E0%A4%A'
     await vi.waitFor(() => expect(location.hash).toBe('#dashboard'))
@@ -442,7 +457,7 @@ describe('authenticated application shell', () => {
 
   it('validates diagnosis inline and synchronizes both detail transitions with queue and Dashboard', async () => {
     await startup('#repairs')
-    document.querySelector<HTMLButtonElement>('[data-repair-status="RECEIVED"]')!.click()
+    await search('RECEIVED')
     document.querySelector<HTMLAnchorElement>('.repair-detail-link')!.click()
     await vi.waitFor(() => expect(document.querySelector('#diagnosis-form')).not.toBeNull())
     const prompt = vi.spyOn(window, 'prompt')
@@ -451,7 +466,7 @@ describe('authenticated application shell', () => {
     input.value = '   '
     document.querySelector<HTMLButtonElement>('#diagnosis-form button')!.click()
     expect(input.getAttribute('aria-invalid')).toBe('true')
-    expect(document.querySelector('#detail-action-error')?.textContent).toContain('A diagnosis is required')
+    expect(document.querySelector('#detail-action-error')?.textContent).toContain('Ingresa un diagnóstico')
     expect(fetchMock.mock.calls.some(([url]) => url.endsWith('/start'))).toBe(false)
     input.value = '  Replace valve  '
     const form = document.querySelector<HTMLFormElement>('#diagnosis-form')!
@@ -464,6 +479,7 @@ describe('authenticated application shell', () => {
     expect(panel('repair-detail').textContent).toContain('Replace valve')
     expect(panel('repair-detail').querySelector('[aria-current="step"]')?.getAttribute('data-stage')).toBe('IN_PROGRESS')
     expect(document.querySelector('.dashboard-metric--in-progress dd')?.textContent).toBe('1')
+    expect(document.querySelector('#visible-order-count')?.textContent).toBe('0 reparaciones')
     expect(document.querySelector('[data-repair-status="IN_PROGRESS"] strong')?.textContent).toBe('1')
     expect(document.querySelector('[data-repair-status="RECEIVED"]')?.getAttribute('aria-pressed')).toBe('true')
     document.querySelector<HTMLButtonElement>('#detail-complete')!.click()
@@ -473,9 +489,10 @@ describe('authenticated application shell', () => {
     await vi.waitFor(() => expect(panel('repair-detail').querySelector('[aria-current="step"]')?.getAttribute('data-stage')).toBe('COMPLETED'))
     expect(fetchMock.mock.calls.filter(([url]) => url.endsWith('/complete'))).toHaveLength(1)
     const { formatRepairDate } = await import('../src/formatters/repair-time.ts')
-    expect(panel('repair-detail').querySelector('[data-stage="COMPLETED"] small')?.textContent).toBe(formatRepairDate('2026-09-26T13:00:00Z'))
+    expect(panel('repair-detail').querySelector('[data-stage="COMPLETED"] small')?.textContent).toBe(formatRepairDate('2026-09-26T13:00:00Z', 'es-CL'))
     expect(panel('repair-detail').querySelector('button')).toBeNull()
     expect(document.querySelector('.dashboard-metric--completed dd')?.textContent).toBe('1')
+    expect(document.querySelector('#visible-order-count')?.textContent).toBe('0 reparaciones')
     expect(document.querySelector('[data-repair-status="COMPLETED"] strong')?.textContent).toBe('1')
     expect(prompt).not.toHaveBeenCalled()
     expect(alert).not.toHaveBeenCalled()
@@ -506,7 +523,7 @@ describe('authenticated application shell', () => {
     document.querySelector<HTMLButtonElement>('#diagnosis-form button')!.click()
     expect(document.activeElement).toBe(input)
     expect(input.getAttribute('aria-invalid')).toBe('true')
-    expect(document.querySelector('#detail-action-error')?.textContent).toContain('A diagnosis is required')
+    expect(document.querySelector('#detail-action-error')?.textContent).toContain('Ingresa un diagnóstico')
     expect(fetchMock.mock.calls.some(([url]) => url.endsWith('/start'))).toBe(false)
   })
 
@@ -529,7 +546,7 @@ describe('authenticated application shell', () => {
       : button.dispatchEvent(new MouseEvent('click', { bubbles: true }))
     submit(); submit(); submit()
     expect(button.disabled).toBe(true)
-    expect(button.textContent).toBe(action === 'start' ? 'Starting repair…' : 'Completing repair…')
+    expect(button.textContent).toBe(action === 'start' ? 'Iniciando reparación…' : 'Completando reparación…')
     expect(document.querySelector('#detail-actions')?.getAttribute('aria-busy')).toBe('true')
     if (!input) expect(document.querySelector<HTMLButtonElement>('#cancel-complete')!.disabled).toBe(true)
     await vi.waitFor(() => expect(resolveAction).toBeDefined())
@@ -537,9 +554,9 @@ describe('authenticated application shell', () => {
     expect(panel('repair-detail').querySelector('[aria-current="step"]')?.getAttribute('data-stage')).toBe(initial.status)
     resolveAction!(json({}, 500))
     await vi.waitFor(() => expect(button.disabled).toBe(false))
-    expect(button.textContent).toBe(action === 'start' ? 'Start repair' : 'Complete repair')
+    expect(button.textContent).toBe(action === 'start' ? 'Iniciar reparación' : 'Completar reparación')
     expect(document.querySelector('#detail-actions')?.getAttribute('aria-busy')).toBe('false')
-    expect(document.querySelector('#detail-action-error')?.textContent).toBe('Unable to complete the request.')
+    expect(document.querySelector('#detail-action-error')?.textContent).toBe('No se pudo completar la solicitud.')
     expect(document.querySelector('#repair-action-status')?.textContent).toBe('')
     expect(panel('repair-detail').querySelector('[aria-current="step"]')?.getAttribute('data-stage')).toBe(initial.status)
     if (input) expect(input.value).toBe('  Replace valve  ')
@@ -548,7 +565,7 @@ describe('authenticated application shell', () => {
     await vi.waitFor(() => expect(resolveAction).toBeDefined())
     const result = { ...initial, status: action === 'start' ? 'IN_PROGRESS' : 'COMPLETED', diagnosis: 'Backend diagnosis', completedAt: action === 'complete' ? '2026-10-01T09:00:00Z' : null }
     resolveAction!(json(result))
-    await vi.waitFor(() => expect(document.querySelector('#repair-action-status')?.textContent).toBe(action === 'start' ? 'Repair started successfully.' : 'Repair completed successfully.'))
+    await vi.waitFor(() => expect(document.querySelector('#repair-action-status')?.textContent).toBe(action === 'start' ? 'Reparación iniciada correctamente.' : 'Reparación completada correctamente.'))
     expect(document.querySelector('#repair-action-status')?.getAttribute('role')).toBe('status')
     expect(panel('repair-detail').textContent).toContain('Backend diagnosis')
     expect(panel('repair-detail').querySelector('[aria-current="step"]')?.getAttribute('data-stage')).toBe(result.status)
@@ -565,7 +582,8 @@ describe('authenticated application shell', () => {
     fetchMock.mockImplementation((url: string, init: RequestInit) => url === '/api/repair-orders'
       ? Promise.resolve(json([{ ...order, status: 'IN_PROGRESS' }])) : original(url, init))
     await startup('#repairs')
-    document.querySelector<HTMLButtonElement>('[data-repair-action="complete"]')!.click()
+    await route('#repairs/order-1', 'repair-detail')
+    await vi.waitFor(() => expect(document.querySelector('#detail-complete')).not.toBeNull())
     await vi.waitFor(() => expect(panel('repair-detail').hidden).toBe(false))
     const opener = document.querySelector<HTMLButtonElement>('#detail-complete')!
     const confirmation = document.querySelector<HTMLElement>('#complete-confirmation')!
@@ -574,7 +592,7 @@ describe('authenticated application shell', () => {
     expect(confirmation.hidden).toBe(false)
     expect(opener.getAttribute('aria-expanded')).toBe('true')
     expect(opener.getAttribute('aria-controls')).toBe(confirmation.id)
-    expect(confirmation.textContent).toContain('This will mark the repair order as completed.')
+    expect(confirmation.textContent).toContain('La reparación quedará marcada como completada.')
     expect(document.activeElement?.id).toBe('cancel-complete')
     expect(fetchMock.mock.calls.some(([url]) => url.endsWith('/complete'))).toBe(false)
     document.querySelector<HTMLButtonElement>('#cancel-complete')!.click()
@@ -629,7 +647,7 @@ describe('authenticated application shell', () => {
     await vi.waitFor(() => expect(document.querySelector<HTMLButtonElement>('#diagnosis-form button')!.disabled).toBe(false))
     expect(document.querySelector<HTMLTextAreaElement>('#repair-diagnosis')!.value).toBe('Keep this diagnosis')
     expect(document.activeElement?.id).toBe('detail-action-error')
-    expect(document.querySelector('#detail-action-error')?.textContent).toBe('Unable to complete the request.')
+    expect(document.querySelector('#detail-action-error')?.textContent).toBe('No se pudo completar la solicitud.')
   })
 
 
@@ -651,7 +669,7 @@ describe('authenticated application shell', () => {
 
   it('focuses the first invalid creation field and advances to the next invalid field', async () => {
     await startup('#repairs')
-    document.querySelector<HTMLElement>('.order-form-panel summary')!.click()
+    await route('#repairs/new', 'repair-new')
     const submit = document.querySelector<HTMLButtonElement>('#repair-order-form button')!
     submit.click()
     expect(document.activeElement?.id).toBe('customer-name')
@@ -683,11 +701,174 @@ describe('authenticated application shell', () => {
     const previousHeading = document.activeElement
     expect(previousHeading?.id).toBe('dashboard-title')
     resolveAction!(json({ ...order, status: action === 'start' ? 'IN_PROGRESS' : 'COMPLETED', diagnosis: 'Diagnosis' }))
-    await vi.waitFor(() => expect(document.querySelector('#repair-action-status')?.textContent).toContain('successfully'))
-    expect(previousHeading?.isConnected).toBe(false)
+    await vi.waitFor(() => expect(document.querySelector('#repair-action-status')?.textContent).toContain('correctamente'))
+    expect(previousHeading?.isConnected).toBe(true)
     expect(document.activeElement?.id).toBe('dashboard-title')
     expect(document.activeElement?.isConnected).toBe(true)
     expect(location.hash).toBe('#dashboard')
   })
 
+})
+
+describe('I5 intention-driven repairs', () => {
+  const collectionRequests = () => fetchMock.mock.calls.filter(([url, init]) => url === '/api/repair-orders' && (!init.method || init.method === 'GET'))
+  const submitQuery = () => document.querySelector('#repair-search-form')!.dispatchEvent(new Event('submit', { cancelable: true }))
+
+  it.each([
+    ['#repairs', 'repairs', 'repairs-title'],
+    ['#repairs/new', 'repair-new', 'repair-new-title'],
+    ['#repairs/search', 'repair-search', 'repair-search-title'],
+  ])('opens %s without loading orders and keeps the module active', async (hash, destination, heading) => {
+    await startup(hash)
+    expect(collectionRequests()).toHaveLength(0)
+    expect(active()).toBe('Reparaciones')
+    expect(panel(destination).hidden).toBe(false)
+    expect(panel(destination).querySelector('h1')?.id).toBe(heading)
+    expect(document.querySelector('.repair-results')).toBeNull()
+    expect(document.querySelector('#repair-results-title')).toBeNull()
+    expect(panel('repairs').querySelector('form, table, .repair-filters')).toBeNull()
+  })
+
+  it('navigates through the two capabilities and cancels creation with heading focus', async () => {
+    await startup('#repairs')
+    panel('repairs').querySelector<HTMLAnchorElement>('a[href="#repairs/new"]')!.click()
+    await vi.waitFor(() => expect(document.activeElement?.id).toBe('repair-new-title'))
+    expect(panel('repair-new').querySelector('form')).not.toBeNull()
+    panel('repair-new').querySelector<HTMLAnchorElement>('.repairs-secondary-action')!.click()
+    await vi.waitFor(() => expect(document.activeElement?.id).toBe('repairs-title'))
+    panel('repairs').querySelector<HTMLAnchorElement>('a[href="#repairs/search"]')!.click()
+    await vi.waitFor(() => expect(document.activeElement?.id).toBe('repair-search-title'))
+    expect(document.querySelector<HTMLElement>('#repair-search-initial')!.hidden).toBe(false)
+    expect(collectionRequests()).toHaveLength(0)
+  })
+
+  it('waits for explicit search even with a cached Dashboard collection and reapplies filters only on submit', async () => {
+    await startup()
+    await route('#repairs/search', 'repair-search')
+    expect(document.querySelector('.repair-results')).toBeNull()
+    document.querySelector<HTMLButtonElement>('[data-repair-status="COMPLETED"]')!.click()
+    expect(document.querySelector('#repair-order-empty')).toBeNull()
+    expect(collectionRequests()).toHaveLength(1)
+    await search('COMPLETED')
+    expect(document.querySelector('#repair-order-empty')?.textContent).toBe('No se encontraron reparaciones')
+    document.querySelector<HTMLButtonElement>('[data-repair-status="all"]')!.click()
+    expect(document.querySelector('.repair-results')).toBeNull()
+    submitQuery()
+    await vi.waitFor(() => expect(document.querySelectorAll('.repair-results tbody tr')).toHaveLength(1))
+    expect(collectionRequests()).toHaveLength(1)
+    expect(document.activeElement?.id).toBe('repair-results-title')
+    expect(panel('repair-search').textContent).toContain('Recibidas')
+    expect(panel('repair-search').textContent).not.toMatch(/Repair work queue|View detail|Start repair/)
+  })
+
+  it('loads only once for duplicate pending queries and offers retry after failure', async () => {
+    await startup('#repairs/search')
+    const original = fetchMock.getMockImplementation()!
+    let resolveQuery: ((response: Response) => void) | undefined
+    fetchMock.mockImplementation((url: string, init: RequestInit) => url === '/api/repair-orders'
+      ? new Promise<Response>(resolve => { resolveQuery = resolve }) : original(url, init))
+    submitQuery(); submitQuery()
+    await vi.waitFor(() => expect(resolveQuery).toBeDefined())
+    expect(collectionRequests()).toHaveLength(1)
+    expect(document.querySelector('#repair-search-form')?.getAttribute('aria-busy')).toBe('true')
+    resolveQuery!(json({}, 500))
+    await vi.waitFor(() => expect(document.querySelector('#repair-search-error')?.textContent).toBe('No se pudo completar la solicitud.'))
+    expect(document.querySelector<HTMLButtonElement>('#repair-search-form button[type="submit"]')!.disabled).toBe(false)
+    expect(document.querySelector('#repair-order-empty')).toBeNull()
+    fetchMock.mockImplementation(original)
+    await search()
+    expect(collectionRequests()).toHaveLength(2)
+    expect(document.querySelectorAll('.repair-results tbody tr')).toHaveLength(1)
+  })
+
+  it('preserves a creation draft and its focus when a query finishes after navigation', async () => {
+    await startup('#repairs/search')
+    const original = fetchMock.getMockImplementation()!
+    let resolveQuery: ((response: Response) => void) | undefined
+    fetchMock.mockImplementation((url: string, init: RequestInit) => url === '/api/repair-orders'
+      ? new Promise<Response>(resolve => { resolveQuery = resolve }) : original(url, init))
+    submitQuery()
+    await vi.waitFor(() => expect(resolveQuery).toBeDefined())
+    await route('#repairs/new', 'repair-new')
+    const input = document.querySelector<HTMLInputElement>('#customer-name')!
+    input.value = 'Borrador conservado'
+    input.focus()
+    resolveQuery!(json([order]))
+    await vi.waitFor(() => expect(document.querySelector('#repair-results-title')).not.toBeNull())
+    expect(input.isConnected).toBe(true)
+    expect(input.value).toBe('Borrador conservado')
+    expect(document.activeElement).toBe(input)
+    expect(location.hash).toBe('#repairs/new')
+  })
+
+  it('ignores a late collection response after logout', async () => {
+    await startup('#repairs/search')
+    const original = fetchMock.getMockImplementation()!
+    let resolveQuery: ((response: Response) => void) | undefined
+    fetchMock.mockImplementation((url: string, init: RequestInit) => url === '/api/repair-orders'
+      ? new Promise<Response>(resolve => { resolveQuery = resolve }) : original(url, init))
+    submitQuery()
+    await vi.waitFor(() => expect(resolveQuery).toBeDefined())
+    document.querySelector<HTMLButtonElement>('#logout')!.click()
+    await vi.waitFor(() => expect(document.querySelector('#login-form')).not.toBeNull())
+    resolveQuery!(json([order]))
+    await new Promise(resolve => setTimeout(resolve, 0))
+    expect(document.querySelector('.app-shell')).toBeNull()
+    expect(document.querySelector('#login-form')).not.toBeNull()
+  })
+
+  it('keeps the creation payload and CSRF contract, blocks duplicate submissions and opens the created detail', async () => {
+    await startup('#repairs/new')
+    const payload = { customerName: 'Cliente real', customerContact: '+56911112222', heaterBrand: 'Bosch', heaterModel: 'Therm', reportedIssue: 'No enciende' }
+    for (const [name, value] of Object.entries(payload)) document.querySelector<HTMLInputElement>(`[name="${name}"]`)!.value = ` ${value} `
+    const form = document.querySelector('#repair-order-form')!
+    form.dispatchEvent(new Event('submit', { cancelable: true }))
+    form.dispatchEvent(new Event('submit', { cancelable: true }))
+    await vi.waitFor(() => expect(location.hash).toBe('#repairs/order-2'))
+    await vi.waitFor(() => expect(document.activeElement?.id).toBe('repair-detail-title'))
+    const requests = fetchMock.mock.calls.filter(([url, init]) => url === '/api/repair-orders' && init.method === 'POST')
+    expect(requests).toHaveLength(1)
+    expect(JSON.parse(requests[0]![1].body as string)).toEqual(payload)
+    expect(new Headers(requests[0]![1].headers).get('X-CSRF-TOKEN')).toBe('test-token')
+    expect(collectionRequests()).toHaveLength(0)
+    expect(panel('repair-detail').textContent).toContain('Cliente real')
+    expect(document.querySelector('#repair-action-status')?.textContent).toBe('Reparación creada correctamente.')
+    await navigate('dashboard')
+    await vi.waitFor(() => expect(collectionRequests()).toHaveLength(1))
+  })
+})
+
+describe('I5 asynchronous route safeguards', () => {
+  it('preserves a newly created order when an older collection request finishes', async () => {
+    await startup('#repairs/search')
+    const original = fetchMock.getMockImplementation()!
+    let resolveOrders: ((response: Response) => void) | undefined
+    fetchMock.mockImplementation((url: string, init: RequestInit) => url === '/api/repair-orders' && !init.method
+      ? new Promise<Response>(resolve => { resolveOrders = resolve }) : original(url, init))
+    document.querySelector('#repair-search-form')!.dispatchEvent(new Event('submit', { cancelable: true }))
+    await vi.waitFor(() => expect(resolveOrders).toBeDefined())
+    await route('#repairs/new', 'repair-new')
+    for (const [name, value] of Object.entries({ customerName: 'Nuevo cliente', customerContact: '+56911112222', heaterBrand: 'Bosch', heaterModel: 'Therm', reportedIssue: 'No enciende' })) {
+      document.querySelector<HTMLInputElement>(`[name="${name}"]`)!.value = value
+    }
+    document.querySelector('#repair-order-form')!.dispatchEvent(new Event('submit', { cancelable: true }))
+    await vi.waitFor(() => expect(location.hash).toBe('#repairs/order-2'))
+    await vi.waitFor(() => expect(panel('repair-detail').textContent).toContain('Nuevo cliente'))
+    resolveOrders!(json([order]))
+    await vi.waitFor(() => expect(document.querySelector('#visible-order-count')?.textContent).toBe('2 reparaciones'))
+    expect(panel('repair-detail').textContent).toContain('Nuevo cliente')
+    expect(document.querySelector('.dashboard-summary__total strong')?.textContent).toBe('2')
+  })
+
+  it('clears protected UI if an explicit query returns an expired session', async () => {
+    await startup('#repairs/search')
+    const original = fetchMock.getMockImplementation()!
+    fetchMock.mockImplementation((url: string, init: RequestInit) => url === '/api/repair-orders'
+      ? Promise.resolve(json({}, 401)) : original(url, init))
+    document.querySelector('#repair-search-form')!.dispatchEvent(new Event('submit', { cancelable: true }))
+    await vi.waitFor(() => expect(document.querySelector('#login-form')).not.toBeNull())
+    expect(document.querySelector('.app-shell')).toBeNull()
+    expect(document.querySelector('#login-error')?.textContent).toContain('Tu sesión ha expirado')
+    expect(fetchMock.mock.calls.filter(([url]) => url === '/api/repair-orders')).toHaveLength(1)
+  })
 })

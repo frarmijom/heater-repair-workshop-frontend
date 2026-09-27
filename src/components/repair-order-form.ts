@@ -9,25 +9,25 @@ function validatePayload(payload: RepairOrderFormPayload): FormErrors {
   const errors: FormErrors = {}
 
   if (payload.customerName.trim().length === 0) {
-    errors.customerName = 'Enter the customer name.'
+    errors.customerName = 'Ingresa el nombre del cliente.'
   }
 
   if (payload.customerContact.trim().length === 0) {
-    errors.customerContact = 'Enter the customer phone number.'
+    errors.customerContact = 'Ingresa el teléfono del cliente.'
   } else if (!/^\+[1-9][0-9]{7,14}$/.test(payload.customerContact)) {
-    errors.customerContact = 'Use international format, for example +56911112222.'
+    errors.customerContact = 'Usa formato internacional, por ejemplo +56911112222.'
   }
 
   if (payload.heaterBrand.trim().length === 0) {
-    errors.heaterBrand = 'Enter the heater brand.'
+    errors.heaterBrand = 'Ingresa la marca del calefont.'
   }
 
   if (payload.heaterModel.trim().length === 0) {
-    errors.heaterModel = 'Enter the heater model.'
+    errors.heaterModel = 'Ingresa el modelo del calefont.'
   }
 
   if (payload.reportedIssue.trim().length === 0) {
-    errors.reportedIssue = 'Describe the reported issue.'
+    errors.reportedIssue = 'Describe el problema reportado.'
   }
 
   return errors
@@ -35,52 +35,49 @@ function validatePayload(payload: RepairOrderFormPayload): FormErrors {
 
 export function generateRepairOrderFormHtml(): string {
   return `
-    <details class="order-form-panel">
-      <summary class="order-form-panel__header">
-        <span>
-          <span class="order-form-panel__eyebrow">New workshop entry</span>
-          <strong id="order-form-title">Add repair order</strong>
-        </span>
-        <span class="order-form-panel__toggle" aria-hidden="true"></span>
-      </summary>
-
+    <section class="order-form-panel repairs-surface" aria-label="Datos de la nueva reparación">
       <form id="repair-order-form" class="order-form" novalidate>
+        <fieldset class="repair-form-group"><legend>Cliente</legend>
         <div class="form-field">
-          <label for="customer-name">Customer name <span class="required-mark" aria-hidden="true">*</span></label>
+          <label for="customer-name">Nombre del cliente <span class="required-mark" aria-hidden="true">*</span></label>
           <input id="customer-name" name="customerName" type="text" required autocomplete="name" aria-describedby="customer-name-error" />
           <small id="customer-name-error" data-error-for="customerName"></small>
         </div>
 
         <div class="form-field">
-          <label for="customer-phone">Phone number <span class="required-mark" aria-hidden="true">*</span></label>
+          <label for="customer-phone">Teléfono <span class="required-mark" aria-hidden="true">*</span></label>
           <input id="customer-phone" name="customerContact" type="tel" required autocomplete="tel" inputmode="tel" placeholder="+56911112222" aria-describedby="customer-phone-error" />
           <small id="customer-phone-error" data-error-for="customerContact"></small>
         </div>
 
+        </fieldset>
+        <fieldset class="repair-form-group"><legend>Calefont</legend>
         <div class="form-field">
-          <label for="heater-brand">Heater brand <span class="required-mark" aria-hidden="true">*</span></label>
+          <label for="heater-brand">Marca del calefont <span class="required-mark" aria-hidden="true">*</span></label>
           <input id="heater-brand" name="heaterBrand" type="text" required autocomplete="off" aria-describedby="heater-brand-error" />
           <small id="heater-brand-error" data-error-for="heaterBrand"></small>
         </div>
 
         <div class="form-field">
-          <label for="heater-model">Heater model <span class="required-mark" aria-hidden="true">*</span></label>
+          <label for="heater-model">Modelo del calefont <span class="required-mark" aria-hidden="true">*</span></label>
           <input id="heater-model" name="heaterModel" type="text" required autocomplete="off" aria-describedby="heater-model-error" />
           <small id="heater-model-error" data-error-for="heaterModel"></small>
         </div>
 
+        </fieldset>
         <div class="form-field form-field--wide">
-          <label for="reported-issue">Reported issue <span class="required-mark" aria-hidden="true">*</span></label>
+          <label for="reported-issue">Problema reportado <span class="required-mark" aria-hidden="true">*</span></label>
           <textarea id="reported-issue" name="reportedIssue" required rows="4" aria-describedby="reported-issue-error"></textarea>
           <small id="reported-issue-error" data-error-for="reportedIssue"></small>
         </div>
 
         <div class="order-form__actions form-field--wide">
-          <p id="form-submit-status" aria-live="polite">Required fields (*) are validated before submission.</p>
-          <button type="submit">Add repair order</button>
+          <p id="form-submit-status" aria-live="polite">Los campos marcados con * son obligatorios.</p>
+          <a class="repairs-secondary-action" href="#repairs">Cancelar</a>
+          <button type="submit">Crear reparación</button>
         </div>
       </form>
-    </details>
+    </section>
   `
 }
 
@@ -178,23 +175,32 @@ export function setupRepairOrderForm(
     }
 
     if (isValid) {
+      submitStatus.classList.remove('form-submit-status--error')
       submitting = true
       form.setAttribute('aria-busy', 'true')
       submitButton.disabled = true
-      submitButton.textContent = 'Adding order…'
-      submitStatus.textContent = 'Sending validated data to the workshop API…'
+      submitButton.textContent = 'Creando reparación…'
+      submitStatus.textContent = 'Registrando reparación…'
 
       try {
         await onValidSubmit(payload)
+        form.reset()
+        submitStatus.textContent = 'Reparación creada correctamente.'
+        form.removeAttribute('aria-busy')
+        submitButton.disabled = false
+        submitButton.textContent = 'Crear reparación'
+        hasAttemptedSubmit = false
+        touchedFields.clear()
+        showErrors({})
       } catch (error: unknown) {
         submitStatus.textContent =
           error instanceof Error
             ? error.message
-            : 'The repair order could not be added.'
+            : 'No se pudo crear la reparación.'
         submitStatus.classList.add('form-submit-status--error')
         form.setAttribute('aria-busy', 'false')
         submitButton.disabled = false
-        submitButton.textContent = 'Add repair order'
+        submitButton.textContent = 'Crear reparación'
       } finally {
         submitting = false
       }

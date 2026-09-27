@@ -15,14 +15,14 @@ export function parseTimestamp(timestamp: Timestamp): Date | null {
   return Number.isFinite(date.getTime()) ? date : null
 }
 
-export function formatRepairDateTime(timestamp: Timestamp): string | null {
+export function formatRepairDateTime(timestamp: Timestamp, locale?: string): string | null {
   const date = parseTimestamp(timestamp)
-  return date === null ? null : dateTimeFormatter.format(date)
+  return date === null ? null : (locale ? new Intl.DateTimeFormat(locale, { dateStyle: 'medium', timeStyle: 'short' }) : dateTimeFormatter).format(date)
 }
 
-export function formatRepairDate(timestamp: Timestamp): string | null {
+export function formatRepairDate(timestamp: Timestamp, locale?: string): string | null {
   const date = parseTimestamp(timestamp)
-  return date === null ? null : dateFormatter.format(date)
+  return date === null ? null : (locale ? new Intl.DateTimeFormat(locale, { dateStyle: 'medium' }) : dateFormatter).format(date)
 }
 
 // There is no startedAt in the API. Only RECEIVED supports a current-state duration.
