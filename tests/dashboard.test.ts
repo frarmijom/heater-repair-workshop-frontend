@@ -140,17 +140,19 @@ describe('operational blocks', () => {
     expect(root.querySelector('.dashboard-attention')).toBeNull()
     expect(root.querySelector('.dashboard-activity')).toBeNull()
     expect(root.querySelectorAll('a[href^="#repairs/"], time')).toHaveLength(0)
-    expect(root.querySelector('a[href="#repairs"]')?.textContent).toBe('Ver todas las reparaciones')
+    expect(root.querySelector('a[href="#repairs"]')?.textContent).toBe('Ver todas las reparaciones →')
     expect(root.textContent).toContain('No hay reparaciones pendientes de iniciar.')
     expect(root.textContent).toContain('No hay actividad con fechas disponibles.')
     expect(root.innerHTML).not.toMatch(/NaN|Infinity|Invalid Date/)
-    expect([...root.querySelectorAll('.dashboard-bar > span')].every(node => node.getAttribute('style') === 'width:0%')).toBe(true)
+    expect(root.querySelector('.dashboard-donut')).toBeNull()
+    expect(root.querySelectorAll('.dashboard-weekly-track > span')).toHaveLength(8)
+    expect([...root.querySelectorAll('.dashboard-weekly-track > span')].every(node => node.getAttribute('style') === 'height:0%')).toBe(true)
   })
 
   it('handles missing completion, invalid reception and many orders', () => {
     const source = Array.from({ length: 100 }, (_, index) => received(String(index), 'invalid'))
     const root = render([...source, ...orders(RepairStatus.COMPLETED)])
-    expect(root.querySelectorAll('.dashboard-attention li')).toHaveLength(5)
+    expect(root.querySelectorAll('.dashboard-attention tbody tr')).toHaveLength(5)
     expect(root.querySelector('.dashboard-attention')?.textContent).toContain('No disponible')
     expect(root.querySelector('.dashboard-activity')?.textContent ?? '').not.toContain('Reparación completada')
     expect(root.querySelector('.dashboard-metric--completed small')?.textContent).toBe('Reparaciones completadas.')
@@ -177,8 +179,56 @@ describe('dashboard closure refinements', () => {
       .toEqual([1, 2, 3, 4, 5].map(day => `#repairs/order-${day}`))
     expect(summarizeDashboard(source, now).attention).toHaveLength(9)
     const link = root.querySelector<HTMLAnchorElement>('a[href="#repairs"]')!
-    expect(link.textContent).toBe('Ver todas las reparaciones')
+    expect(link.textContent).toBe('Ver todas las reparaciones →')
     expect(link.tabIndex).toBe(0)
     expect(link.closest('[hidden], [inert], [aria-hidden="true"]')).toBeNull()
+  })
+})
+
+describe('dashboard visual semantics', () => {
+  it('uses a named attention table with column headers and real row values', () => {
+    const root = render([received('table-order', '2026-09-20T12:00:00Z')])
+    const table = root.querySelector('table.dashboard-attention')!
+    expect(table.getAttribute('aria-labelledby')).toBe('attention-title')
+    expect([...table.querySelectorAll('thead th[scope="col"]')].map(cell => cell.textContent))
+      .toEqual(['Orden', 'Cliente', 'Equipo', 'Estado', 'Tiempo desde recepción', 'Acción'])
+    expect(table.querySelector('tbody th[scope="row"]')?.textContent).toBe('#table-order')
+    expect(table.querySelector('.dashboard-state')?.textContent).toBe('Recibidas')
+    expect(table.querySelector('a')?.getAttribute('href')).toBe('#repairs/table-order')
+  })
+
+  it('draws the real distribution with a complete textual equivalent', () => {
+    const root = render(orders(RepairStatus.RECEIVED, RepairStatus.RECEIVED, RepairStatus.IN_PROGRESS, RepairStatus.COMPLETED))
+    expect(root.querySelector('.dashboard-donut')?.getAttribute('aria-hidden')).toBe('true')
+    expect(root.querySelector('.dashboard-donut b')?.textContent).toBe('4')
+    expect([...root.querySelectorAll('.dashboard-donut circle')].map(circle => circle.getAttribute('stroke-dasharray')))
+      .toEqual(['50 50', '25 75', '25 75'])
+    expect([...root.querySelectorAll('.dashboard-donut circle')].map(circle => circle.getAttribute('stroke-dashoffset')))
+      .toEqual(['0', '-50', '-75'])
+    const legend = root.querySelector('.dashboard-distribution')!
+    expect(legend.getAttribute('aria-labelledby')).toBe('status-title')
+    expect([...legend.querySelectorAll('strong')].map(node => node.textContent)).toEqual(['2', '1', '1'])
+    expect([...legend.querySelectorAll('.dashboard-percentage')].map(node => node.textContent)).toEqual(['50%', '25%', '25%'])
+    for (const label of ['Recibidas', 'En reparación', 'Completadas']) expect(legend.textContent).toContain(label)
+    expect([...root.querySelectorAll('.dashboard-icon')].every(svg => svg.getAttribute('aria-hidden') === 'true')).toBe(true)
+  })
+
+  it('renders eight proportional vertical bars with real counts and accessible date ranges', () => {
+    const weeks = weeklyReceptions([], now)
+    const source = [received('one', weeks[6]!.start.toISOString()),
+      received('two', weeks[7]!.start.toISOString()), received('three', weeks[7]!.start.toISOString())]
+    const root = document.createElement('div')
+    root.innerHTML = generateWorkshopMonitorHtml(source, now)
+    const chart = root.querySelector('.dashboard-weekly')!
+    expect(chart.getAttribute('aria-labelledby')).toBe('weekly-title')
+    expect(chart.getAttribute('aria-describedby')).toBe('weekly-description')
+    expect([...chart.querySelectorAll('li strong')].map(node => node.textContent))
+      .toEqual([0, 0, 0, 0, 0, 0, 1, 2].map(count => `${count} recepciones`))
+    expect([...chart.querySelectorAll('.dashboard-weekly-track > span')].map(node => node.getAttribute('style')))
+      .toEqual([0, 0, 0, 0, 0, 0, 50, 100].map(height => `height:${height}%`))
+    for (const item of chart.querySelectorAll('li')) {
+      expect(item.querySelector('.dashboard-weekly-track')?.getAttribute('aria-hidden')).toBe('true')
+      expect(item.querySelector(':scope > .dashboard-sr-only')?.textContent).toContain(' – ')
+    }
   })
 })

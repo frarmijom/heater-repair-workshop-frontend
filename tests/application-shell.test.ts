@@ -79,7 +79,7 @@ describe('authenticated application shell', () => {
   it('opens all repairs from the dashboard using a focusable native link and existing routing', async () => {
     await startup()
     const link = panel('dashboard').querySelector<HTMLAnchorElement>('a[href="#repairs"]')!
-    expect(link.textContent).toBe('Ver todas las reparaciones')
+    expect(link.textContent).toBe('Ver todas las reparaciones →')
     expect(link.tabIndex).toBe(0)
     link.focus()
     expect(document.activeElement).toBe(link)
