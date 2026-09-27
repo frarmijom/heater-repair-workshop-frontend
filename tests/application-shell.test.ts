@@ -61,8 +61,33 @@ describe('authenticated application shell', () => {
     expect(document.querySelector('.app-sidebar #logout')?.textContent).toBe('Cerrar sesión')
     expect(document.querySelector('.hero-scene')).toBeNull()
     expect(panel('dashboard').querySelectorAll('h1')).toHaveLength(1)
-    expect(panel('dashboard').querySelector('h2')?.textContent).toBe('Workshop overview')
+    expect(panel('dashboard').querySelector('h2')?.textContent).toBe('Resumen del taller')
     expect(panel('dashboard').querySelector('.monitor, .monitor-card, [role="img"]')).toBeNull()
+  })
+
+  it('opens a repair from dashboard attention using the existing route and focus handling', async () => {
+    await startup()
+    const link = panel('dashboard').querySelector<HTMLAnchorElement>('.dashboard-attention a')!
+    expect(link.getAttribute('href')).toBe('#repairs/order-1')
+    link.click()
+    await vi.waitFor(() => expect(panel('repair-detail').hidden).toBe(false))
+    expect(location.hash).toBe('#repairs/order-1')
+    expect(document.activeElement?.id).toBe('repair-detail-title')
+    expect(active()).toBe('Reparaciones')
+  })
+
+  it('opens all repairs from the dashboard using a focusable native link and existing routing', async () => {
+    await startup()
+    const link = panel('dashboard').querySelector<HTMLAnchorElement>('a[href="#repairs"]')!
+    expect(link.textContent).toBe('Ver todas las reparaciones')
+    expect(link.tabIndex).toBe(0)
+    link.focus()
+    expect(document.activeElement).toBe(link)
+    link.click()
+    await vi.waitFor(() => expect(panel('repairs').hidden).toBe(false))
+    expect(location.hash).toBe('#repairs')
+    expect(document.activeElement?.id).toBe('repairs-title')
+    expect(active()).toBe('Reparaciones')
   })
 
   it('groups future modules without introducing routes or focusable disabled controls', async () => {
