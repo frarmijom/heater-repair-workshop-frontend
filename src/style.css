@@ -1191,3 +1191,9 @@ body::before {
 .work-order-card__status--waiting-parts { color: var(--work-order-text); background: var(--work-order-bg); }
 .work-order-card__status--not-approved { color: var(--muted); background: var(--paper); }
 .legacy-lifecycle { padding: 1rem; border-left: 3px solid var(--accent); }
+
+/* Reuse the form action layout for independent detail actions. */
+.work-orders-module #detail-actions .order-form__actions { justify-content: flex-start; }
+.work-orders-module #detail-actions .order-form__actions > :is(form, fieldset, section) { flex-basis: 100%; min-width: 0; max-width: 100%; }
+.work-orders-module #detail-actions button.work-orders-secondary-action { color: var(--ui-accent); background: var(--ui-surface); }
+.work-orders-module #detail-actions button.work-orders-secondary-action:hover { color: var(--ui-navy); background: var(--ui-background); }

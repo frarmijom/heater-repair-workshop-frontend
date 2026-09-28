@@ -16,6 +16,16 @@ function render(repair: WorkOrder | undefined) {
   return root
 }
 describe('repair detail and factual lifecycle', () => {
+  it('groups independent maintenance actions with the alternative styled separately', () => {
+    const root = render({ ...order, serviceType: ServiceType.MAINTENANCE })
+    const group = root.querySelector('#detail-actions .order-form__actions')
+    expect(group).not.toBeNull()
+    expect(Array.from(group!.querySelectorAll('button')).map(button => button.dataset.workOrderAction))
+      .toEqual(['start', 'waiting-parts'])
+    expect(group!.querySelector('[data-work-order-action="start"]')?.classList.contains('work-orders-secondary-action')).toBe(false)
+    expect(group!.querySelector('[data-work-order-action="waiting-parts"]')?.classList.contains('work-orders-secondary-action')).toBe(true)
+    expect(root.querySelector('#detail-action-error')?.getAttribute('role')).toBe('alert')
+  })
   it.each(Object.values(WorkOrderStatus))('shows the actual %s without fabricating optional history', status => {
     const root = render({ ...order, status })
     expect(root.querySelectorAll('[aria-current="step"]')).toHaveLength(1)

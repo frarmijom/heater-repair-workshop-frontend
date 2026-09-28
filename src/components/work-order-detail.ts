@@ -13,7 +13,7 @@ export function generateWorkOrderDetailHtml(order: WorkOrder | undefined): strin
   const legacy = order.lifecycleVersion === 'LEGACY'
   const legacyStarted = legacy && [WorkOrderStatus.IN_PROGRESS, WorkOrderStatus.COMPLETED].includes(order.legacyStatus!)
   const actions = availableWorkOrderActions(order)
-  const button = (action: WorkOrderAction) => `<button ${action === 'complete' ? 'id="confirm-complete"' : ''} type="button" data-work-order-action="${action}">${workOrderActions[action]}</button>`
+  const button = (action: WorkOrderAction) => `<button class="${action === 'waiting-parts' || action === 'reject' ? 'work-orders-secondary-action' : ''}" ${action === 'complete' ? 'id="confirm-complete"' : ''} type="button" data-work-order-action="${action}">${workOrderActions[action]}</button>`
   const actionHtml = actions.map(action => {
     if (action === 'diagnosis') return `<form id="diagnosis-form" novalidate>
       <label for="work-order-diagnosis">Diagnóstico</label>
@@ -55,5 +55,5 @@ export function generateWorkOrderDetailHtml(order: WorkOrder | undefined): strin
         ${order.diagnosis ? `<div><dt>Diagnóstico</dt><dd>${escapeHtml(order.diagnosis)}</dd></div>` : ''}
         ${order.serviceType === ServiceType.REPAIR ? `<div><dt>Decisión del cliente</dt><dd>${order.customerDecision === 'APPROVED' ? 'Aprobada' : order.customerDecision === 'REJECTED' ? 'No aprobada' : 'Sin decisión registrada'}</dd></div>` : ''}
       </dl></section>
-    ${actions.length ? `<section class="work-orders-surface" id="detail-actions" aria-labelledby="detail-action-title"><h2 id="detail-action-title">Siguiente acción</h2>${actionHtml}<p id="detail-action-error" role="alert"></p></section>` : ''}`
+    ${actions.length ? `<section class="work-orders-surface" id="detail-actions" aria-labelledby="detail-action-title"><h2 id="detail-action-title">Siguiente acción</h2><div class="order-form__actions">${actionHtml}</div><p id="detail-action-error" role="alert"></p></section>` : ''}`
 }
