@@ -2,7 +2,7 @@ import { WorkOrderStatus, type WorkOrder } from '../models/index.ts'
 import { workOrderStatusPresentation } from './work-order-status.ts'
 import { escapeHtml } from './work-order-card.ts'
 import { formatWorkOrderDate, formatWorkOrderDateTime, formatReceptionElapsed } from '../formatters/work-order-time.ts'
-import { dashboardCategories, summarizeDashboard, weeklyReceptions } from '../dashboard/dashboard-data.ts'
+import { dashboardKpis, summarizeDashboard, weeklyReceptions } from '../dashboard/dashboard-data.ts'
 
 const link = (order: WorkOrder): string => `<a href="#work-orders/${escapeHtml(encodeURIComponent(order.id))}">Abrir orden de trabajo #${escapeHtml(order.id)}</a>`
 const paths = {
@@ -16,10 +16,12 @@ const paths = {
   attention: '<path d="m12 3 10 18H2L12 3Z M12 9v5 M12 17v1"/>',
 }
 const icon = (kind: keyof typeof paths): string => `<svg class="dashboard-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">${paths[kind]}</svg>`
+const kpiIcons = { total: 'waiting-parts', active: 'diagnosis', inProgress: 'in-progress',
+  waiting: 'received', completed: 'completed', notApproved: 'not-approved' } as const
 const shortDate = new Intl.DateTimeFormat(undefined, { day: 'numeric', month: 'short' })
 
 export function generateWorkshopMonitorHtml(orders: readonly WorkOrder[], now = Date.now()): string {
-  const { counts, attention, activity } = summarizeDashboard(orders, now)
+  const { counts, metrics, groups, attention, activity } = summarizeDashboard(orders, now)
   const weeks = weeklyReceptions(orders, now)
   const maximum = Math.max(0, ...weeks.map(week => week.count))
   let offset = 0
@@ -31,14 +33,37 @@ export function generateWorkshopMonitorHtml(orders: readonly WorkOrder[], now = 
   }).join('')
   return `<div class="operational-dashboard">
     <section class="dashboard-summary" aria-labelledby="workload-title">
-      <div class="dashboard-panel-heading"><h2 id="workload-title">Resumen del taller</h2>
-        <p class="dashboard-summary__total">Total de órdenes de trabajo: <strong>${orders.length}</strong></p></div>
-      <dl class="dashboard-summary__metrics">${dashboardCategories.map(({ status, label, context }) => `
-        <div class="dashboard-metric dashboard-metric--${workOrderStatusPresentation[status].modifier}">
-          <dt>${label}<span class="dashboard-kpi-icon">${icon(workOrderStatusPresentation[status].modifier)}</span><small>${context}</small></dt><dd>${counts[status]}</dd>
+      <h2 id="workload-title">Resumen del taller</h2>
+      <dl class="dashboard-summary__metrics">${dashboardKpis.map(({ key, label }) => `
+        <div class="dashboard-metric dashboard-metric--${key}" data-kpi="${key}">
+          <dt>${label}<span class="dashboard-kpi-icon">${icon(kpiIcons[key])}</span></dt><dd>${metrics[key]}</dd>
         </div>`).join('')}</dl>
       ${orders.length === 0 ? '<p>Aún no hay órdenes de trabajo.</p>' : ''}
     </section>
+    <div class="dashboard-overview">
+      <section class="dashboard-panel" aria-labelledby="status-title">
+        <h2 id="status-title">Estado de órdenes de trabajo</h2>
+        <p class="dashboard-caption">Distribución de las órdenes cargadas.</p>
+        <div class="dashboard-status-layout">
+          ${orders.length ? `<div class="dashboard-donut" aria-hidden="true">
+            <svg viewBox="0 0 120 120" focusable="false"><g transform="rotate(-90 60 60)">${segments}</g></svg>
+            <div><span>TOTAL</span><b>${orders.length}</b></div>
+          </div>` : '<p class="dashboard-empty">No hay órdenes de trabajo para mostrar la distribución.</p>'}
+          <ul class="dashboard-distribution" aria-labelledby="status-title">${Object.values(WorkOrderStatus).map(status => `<li>
+            <span class="dashboard-legend-dot dashboard-tone--${workOrderStatusPresentation[status].modifier}" aria-hidden="true"></span>
+            <span>${workOrderStatusPresentation[status].label}</span><strong>${counts[status]}</strong>
+            <span class="dashboard-percentage">${orders.length ? `${(counts[status] / orders.length * 100).toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%` : '—'}</span>
+          </li>`).join('')}</ul>
+        </div>
+      </section>
+      <section class="dashboard-panel dashboard-state-summary" aria-labelledby="state-summary-title">
+        <h2 id="state-summary-title">Resumen por tipo de estado</h2>
+        ${groups.map(group => `<div class="dashboard-state-group" data-state-group="${group.id}">
+          <h3>${group.label}<strong>${group.total}</strong></h3>
+          <dl>${group.statuses.map(status => `<div><dt><span class="dashboard-legend-dot dashboard-tone--${workOrderStatusPresentation[status].modifier}" aria-hidden="true"></span>${workOrderStatusPresentation[status].label}</dt><dd>${counts[status]}</dd></div>`).join('')}</dl>
+        </div>`).join('')}
+      </section>
+    </div>
     <section class="dashboard-panel dashboard-attention-panel" aria-labelledby="attention-title">
       <div class="dashboard-panel-heading"><h2 id="attention-title">${icon('attention')}Órdenes de trabajo que requieren atención</h2>
         <a href="#work-orders">Ver todas las órdenes de trabajo<span aria-hidden="true"> →</span></a></div>
@@ -55,8 +80,7 @@ export function generateWorkshopMonitorHtml(orders: readonly WorkOrder[], now = 
           <td data-label="Acción">${link(order)}</td>
         </tr>`).join('')}</tbody></table>`}
     </section>
-    <div class="dashboard-secondary">
-      <section class="dashboard-panel" aria-labelledby="activity-title">
+    <section class="dashboard-panel" aria-labelledby="activity-title">
         <h2 id="activity-title">Actividad reciente</h2>
         <p class="dashboard-caption">Últimas recepciones y finalizaciones con fecha válida.</p>
         ${activity.length === 0 ? '<p class="dashboard-empty">No hay actividad con fechas disponibles.</p>' : `
@@ -66,22 +90,6 @@ export function generateWorkshopMonitorHtml(orders: readonly WorkOrder[], now = 
           <time datetime="${new Date(at).toISOString()}">${formatWorkOrderDateTime(new Date(at).toISOString())}</time>
         </li>`).join('')}</ol>`}
       </section>
-      <section class="dashboard-panel" aria-labelledby="status-title">
-        <h2 id="status-title">Estado de órdenes de trabajo</h2>
-        <p class="dashboard-caption">Distribución de las órdenes cargadas.</p>
-        <div class="dashboard-status-layout">
-          ${orders.length ? `<div class="dashboard-donut" aria-hidden="true">
-            <svg viewBox="0 0 120 120" focusable="false"><g transform="rotate(-90 60 60)">${segments}</g></svg>
-            <div><span>TOTAL</span><b>${orders.length}</b></div>
-          </div>` : '<p class="dashboard-empty">No hay órdenes de trabajo para mostrar la distribución.</p>'}
-          <ul class="dashboard-distribution" aria-labelledby="status-title">${Object.values(WorkOrderStatus).map(status => `<li>
-            <span class="dashboard-legend-dot dashboard-tone--${workOrderStatusPresentation[status].modifier}" aria-hidden="true"></span>
-            <span>${workOrderStatusPresentation[status].label}</span><strong>${counts[status]}</strong>
-            <span class="dashboard-percentage">${orders.length ? `${(counts[status] / orders.length * 100).toLocaleString(undefined, { maximumFractionDigits: 1 })}%` : '—'}</span>
-          </li>`).join('')}</ul>
-        </div>
-      </section>
-    </div>
     <section class="dashboard-panel" aria-labelledby="weekly-title">
       <h2 id="weekly-title">Órdenes de trabajo por semana</h2>
       <p id="weekly-description" class="dashboard-caption">Recepciones en las últimas ocho semanas, incluida la actual hasta este momento. Semanas de lunes a domingo, en hora local. Se excluyen fechas inválidas y futuras.</p>

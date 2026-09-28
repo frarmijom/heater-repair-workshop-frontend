@@ -624,7 +624,7 @@ describe('I5 asynchronous route safeguards', () => {
     resolveOrders!(json([order]))
     await vi.waitFor(() => expect(document.querySelector('#visible-order-count')?.textContent).toBe('2 órdenes de trabajo'))
     expect(panel('work-order-detail').textContent).toContain('Nuevo cliente')
-    expect(document.querySelector('.dashboard-summary__total strong')?.textContent).toBe('2')
+    expect(document.querySelector('[data-kpi=total] dd')?.textContent).toBe('2')
   })
 
   it('clears protected UI if an explicit query returns an expired session', async () => {

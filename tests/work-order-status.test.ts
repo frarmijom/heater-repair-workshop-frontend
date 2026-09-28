@@ -3,7 +3,6 @@ import { ServiceType } from '../src/models/index.ts'
 import { describe, expect, it } from 'vitest'
 import { WorkOrderStatus } from '../src/models/index.ts'
 import type { WorkOrder } from '../src/models/index.ts'
-import { dashboardCategories } from '../src/dashboard/dashboard-data.ts'
 import { workOrderStatusPresentation } from '../src/components/work-order-status.ts'
 import { generateWorkOrderDetailHtml } from '../src/components/work-order-detail.ts'
 import { generateWorkOrderCardHtml } from '../src/components/work-order-card.ts'
@@ -59,10 +58,9 @@ describe('canonical repair status presentation', () => {
     expect(isWorkOrderFilter(status)).toBe(true)
 
     const overview = render(generateWorkshopMonitorHtml([order(status)]))
-    const metric = overview.querySelector(`.dashboard-metric--${modifier}`)!
-    expect(metric.querySelector('dt')!.firstChild?.textContent).toBe(dashboardCategories.find(category => category.status === status)!.label)
-    expect(overview.querySelector('.dashboard-distribution')!.textContent).toContain(label)
-    expect(metric.querySelector('dd')!.textContent).toBe('1')
+    const item = [...overview.querySelectorAll('.dashboard-distribution li')].find(node => node.textContent?.includes(label))!
+    expect(item.querySelector('strong')!.textContent).toBe('1')
+    expect(overview.querySelector('.dashboard-state-summary')!.textContent).toContain(label)
   })
 
   it('preserves the All filter, counts and zero-order overview', () => {
@@ -71,7 +69,7 @@ describe('canonical repair status presentation', () => {
     expect(filters.querySelector('[data-work-order-status="all"] strong')!.textContent).toBe('3')
     expect(filters.querySelector('[data-work-order-status="all"]')!.getAttribute('aria-pressed')).toBe('true')
     const overview = render(generateWorkshopMonitorHtml([]))
-    expect([...overview.querySelectorAll('dd, .dashboard-summary__total strong')].map(node => node.textContent)).toEqual(Array(8).fill('0'))
+    expect([...overview.querySelectorAll('.dashboard-summary__metrics dd')].map(node => node.textContent)).toEqual(Array(6).fill('0'))
   })
 })
 

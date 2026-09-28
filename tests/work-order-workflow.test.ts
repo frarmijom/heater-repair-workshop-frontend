@@ -108,7 +108,7 @@ describe('Work Orders v1 browser workflows', () => {
     expect(document.querySelector('#detail-actions')).toBeNull()
     expect(fetchMock.mock.calls.some(([url]) => url.endsWith('/start'))).toBe(false)
     location.hash = '#dashboard'
-    await vi.waitFor(() => expect(document.querySelector('.dashboard-metric--not-approved dd')?.textContent).toBe('1'))
+    await vi.waitFor(() => expect(document.querySelector('[data-kpi=notApproved] dd')?.textContent).toBe('1'))
     expect(document.querySelector('.dashboard-metric--completed dd')?.textContent).toBe('0')
   })
   it.each([true, false])('maintenance needs no diagnosis or approval; waiting parts=%s', async waiting => {

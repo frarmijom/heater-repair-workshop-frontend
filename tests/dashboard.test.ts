@@ -2,7 +2,7 @@
 import { ServiceType } from '../src/models/index.ts'
 import { describe, expect, it } from 'vitest'
 import { generateWorkshopMonitorHtml } from '../src/components/workshop-monitor.ts'
-import { dashboardCategories, summarizeDashboard, weeklyReceptions } from '../src/dashboard/dashboard-data.ts'
+import { dashboardKpis, summarizeDashboard, weeklyReceptions } from '../src/dashboard/dashboard-data.ts'
 import { WorkOrderStatus } from '../src/models/index.ts'
 import type { WorkOrder } from '../src/models/index.ts'
 
@@ -21,36 +21,36 @@ function render(repairs: WorkOrder[]): HTMLDivElement {
 }
 
 function counts(root: HTMLElement): string[] {
-  return Array.from(root.querySelectorAll('dd'), element => element.textContent!)
+  return Array.from(root.querySelectorAll('.dashboard-summary__metrics dd'), element => element.textContent!)
 }
 
 describe('operational dashboard', () => {
   it('counts each lifecycle state and the total using the supplied collection', () => {
     const root = render(orders(WorkOrderStatus.RECEIVED, WorkOrderStatus.COMPLETED,
       WorkOrderStatus.IN_PROGRESS, WorkOrderStatus.RECEIVED, WorkOrderStatus.COMPLETED, WorkOrderStatus.COMPLETED))
-    expect(counts(root)).toEqual(['2', '0', '0', '0', '1', '3', '0'])
-    expect(root.querySelector('.dashboard-summary__total')?.textContent).toBe('Total de órdenes de trabajo: 6')
-    expect(Array.from(root.querySelectorAll('dt'), element => element.firstChild?.textContent))
-      .toEqual(dashboardCategories.map(category => category.label))
+    expect(counts(root)).toEqual(['6', '3', '1', '0', '3', '0'])
+    expect(root.querySelector('[data-kpi=total] dd')?.textContent).toBe('6')
+    expect(Array.from(root.querySelectorAll('.dashboard-summary__metrics dt'), element => element.firstChild?.textContent))
+      .toEqual(dashboardKpis.map(category => category.label))
     expect(root.textContent).not.toContain('Aún no hay órdenes de trabajo.')
     expect(root.querySelector('.monitor, .monitor__distribution, [role="img"]')).toBeNull()
   })
 
   it('renders all zero states and an explicit empty message', () => {
     const root = render([])
-    expect(counts(root)).toEqual(['0', '0', '0', '0', '0', '0', '0'])
-    expect(root.querySelector('.dashboard-summary__total')?.textContent).toBe('Total de órdenes de trabajo: 0')
+    expect(counts(root)).toEqual(['0', '0', '0', '0', '0', '0'])
+    expect(root.querySelector('[data-kpi=total] dd')?.textContent).toBe('0')
     expect(root.textContent).toContain('Aún no hay órdenes de trabajo.')
-    expect(root.querySelectorAll('dt')).toHaveLength(7)
+    expect(root.querySelectorAll('.dashboard-summary__metrics dt')).toHaveLength(6)
   })
 
   it('recalculates counts for changed collections without retaining previous values', () => {
     const repairs = orders(WorkOrderStatus.RECEIVED, WorkOrderStatus.COMPLETED)
-    expect(counts(render(repairs))).toEqual(['1', '0', '0', '0', '0', '1', '0'])
+    expect(counts(render(repairs))).toEqual(['2', '1', '0', '0', '1', '0'])
     const updated = repairs.map(order => ({ ...order, status: WorkOrderStatus.IN_PROGRESS }))
-    expect(counts(render(updated))).toEqual(['0', '0', '0', '0', '2', '0', '0'])
-    expect(counts(render(repairs))).toEqual(['1', '0', '0', '0', '0', '1', '0'])
-    expect(counts(render([]))).toEqual(['0', '0', '0', '0', '0', '0', '0'])
+    expect(counts(render(updated))).toEqual(['2', '2', '2', '0', '0', '0'])
+    expect(counts(render(repairs))).toEqual(['2', '1', '0', '0', '1', '0'])
+    expect(counts(render([]))).toEqual(['0', '0', '0', '0', '0', '0'])
   })
 })
 
@@ -62,7 +62,7 @@ describe('dashboard data rules', () => {
     const source = orders(WorkOrderStatus.RECEIVED, WorkOrderStatus.IN_PROGRESS, WorkOrderStatus.COMPLETED)
     const before = structuredClone(source)
     expect(summarizeDashboard(source, now).counts).toEqual({ RECEIVED: 1, DIAGNOSIS: 0, WAITING_CUSTOMER: 0, WAITING_PARTS: 0, IN_PROGRESS: 1, COMPLETED: 1, NOT_APPROVED: 0 })
-    expect(summarizeDashboard([], now)).toEqual({ counts: { RECEIVED: 0, DIAGNOSIS: 0, WAITING_CUSTOMER: 0, WAITING_PARTS: 0, IN_PROGRESS: 0, COMPLETED: 0, NOT_APPROVED: 0 }, attention: [], activity: [] })
+    expect(summarizeDashboard([], now)).toMatchObject({ counts: { RECEIVED: 0, DIAGNOSIS: 0, WAITING_CUSTOMER: 0, WAITING_PARTS: 0, IN_PROGRESS: 0, COMPLETED: 0, NOT_APPROVED: 0 }, attention: [], activity: [] })
     expect(source).toEqual(before)
   })
 
@@ -156,7 +156,7 @@ describe('operational blocks', () => {
     expect(root.querySelectorAll('.dashboard-attention tbody tr')).toHaveLength(5)
     expect(root.querySelector('.dashboard-attention')?.textContent).toContain('No disponible')
     expect(root.querySelector('.dashboard-activity')?.textContent ?? '').not.toContain('Orden de trabajo completada')
-    expect(root.querySelector('.dashboard-metric--completed small')?.textContent).toBe('Órdenes en estado: completadas.')
+    expect(root.querySelector('[data-kpi=completed] dd')?.textContent).toBe('1')
     expect(root.innerHTML).not.toContain('Invalid Date')
   })
 })
@@ -165,8 +165,8 @@ describe('operational blocks', () => {
 describe('dashboard closure refinements', () => {
   it('labels only COMPLETED orders as Completadas and preserves the other KPIs', () => {
     const root = render(orders(WorkOrderStatus.RECEIVED, WorkOrderStatus.IN_PROGRESS, WorkOrderStatus.COMPLETED, WorkOrderStatus.COMPLETED))
-    expect([...root.querySelectorAll('dt')].map(node => node.firstChild?.textContent)).toEqual(['Recibidas', 'En diagnóstico', 'Esperando al cliente', 'Esperando repuestos', 'En ejecución', 'Completadas', 'No aprobadas'])
-    expect(counts(root)).toEqual(['1', '0', '0', '0', '1', '2', '0'])
+    expect([...root.querySelectorAll('.dashboard-summary__metrics dt')].map(node => node.firstChild?.textContent)).toEqual(['Total de órdenes', 'Órdenes activas', 'En ejecución', 'En espera', 'Completadas', 'No aprobadas'])
+    expect(counts(root)).toEqual(['4', '2', '1', '0', '2', '0'])
     expect(root.textContent).not.toMatch(/entrega/i)
   })
 
@@ -209,7 +209,7 @@ describe('dashboard visual semantics', () => {
     const legend = root.querySelector('.dashboard-distribution')!
     expect(legend.getAttribute('aria-labelledby')).toBe('status-title')
     expect([...legend.querySelectorAll('strong')].map(node => node.textContent)).toEqual(['2', '0', '0', '0', '1', '1', '0'])
-    expect([...legend.querySelectorAll('.dashboard-percentage')].map(node => node.textContent)).toEqual(['50%', '0%', '0%', '0%', '25%', '25%', '0%'])
+    expect([...legend.querySelectorAll('.dashboard-percentage')].map(node => node.textContent)).toEqual([50, 0, 0, 0, 25, 25, 0].map(value => `${value.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%`))
     for (const label of ['Recibidas', 'En ejecución', 'Completadas']) expect(legend.textContent).toContain(label)
     expect([...root.querySelectorAll('.dashboard-icon')].every(svg => svg.getAttribute('aria-hidden') === 'true')).toBe(true)
   })
@@ -231,5 +231,49 @@ describe('dashboard visual semantics', () => {
       expect(item.querySelector('.dashboard-weekly-track')?.getAttribute('aria-hidden')).toBe('true')
       expect(item.querySelector(':scope > .dashboard-sr-only')?.textContent).toContain(' – ')
     }
+  })
+})
+
+
+describe('operational KPI and state groups', () => {
+  it.each([
+    [WorkOrderStatus.RECEIVED, 1, 0, 0, 0, 0],
+    [WorkOrderStatus.DIAGNOSIS, 1, 0, 0, 0, 0],
+    [WorkOrderStatus.WAITING_CUSTOMER, 1, 0, 1, 0, 0],
+    [WorkOrderStatus.WAITING_PARTS, 1, 0, 1, 0, 0],
+    [WorkOrderStatus.IN_PROGRESS, 1, 1, 0, 0, 0],
+    [WorkOrderStatus.COMPLETED, 0, 0, 0, 1, 0],
+    [WorkOrderStatus.NOT_APPROVED, 0, 0, 0, 0, 1],
+  ] as const)('classifies %s without confusing active, waiting or terminal orders', (status, active, inProgress, waiting, completed, notApproved) => {
+    for (const serviceType of Object.values(ServiceType)) {
+      const source = orders(status).map(order => ({ ...order, serviceType }))
+      expect(summarizeDashboard(source).metrics).toEqual({ total: 1, active, inProgress, waiting, completed, notApproved })
+    }
+  })
+
+  it('keeps KPIs, donut and group breakdown consistent for a mixed collection', () => {
+    const source = orders(WorkOrderStatus.RECEIVED, WorkOrderStatus.DIAGNOSIS,
+      WorkOrderStatus.WAITING_CUSTOMER, WorkOrderStatus.WAITING_PARTS, WorkOrderStatus.IN_PROGRESS,
+      WorkOrderStatus.IN_PROGRESS, ...Array<WorkOrderStatus>(24).fill(WorkOrderStatus.COMPLETED),
+      ...Array<WorkOrderStatus>(3).fill(WorkOrderStatus.NOT_APPROVED))
+    const root = render(source)
+    expect(counts(root)).toEqual(['33', '6', '2', '2', '24', '3'])
+    expect(root.querySelector('.dashboard-donut b')?.textContent).toBe('33')
+    expect(root.querySelector('[data-state-group=active] h3 strong')?.textContent).toBe('6')
+    expect(root.querySelector('[data-state-group=closed] h3 strong')?.textContent).toBe('27')
+    expect([...root.querySelectorAll('.dashboard-state-group dd')].map(node => node.textContent))
+      .toEqual(['1', '1', '1', '1', '2', '24', '3'])
+    expect([...root.querySelectorAll('.dashboard-state-group dt')].map(node => node.textContent))
+      .toEqual(['Recibidas', 'En diagnóstico', 'Esperando al cliente', 'Esperando repuestos', 'En ejecución', 'Completadas', 'No aprobadas'])
+    const summary = summarizeDashboard(source)
+    expect(summary.groups.reduce((sum, group) => sum + group.total, 0)).toBe(source.length)
+    expect(root.querySelector('.dashboard-overview')?.previousElementSibling?.classList.contains('dashboard-summary')).toBe(true)
+  })
+
+  it('keeps empty KPI and group totals consistent without undefined percentages', () => {
+    expect(summarizeDashboard([]).metrics).toEqual({ total: 0, active: 0, inProgress: 0, waiting: 0, completed: 0, notApproved: 0 })
+    const root = render([])
+    expect([...root.querySelectorAll('.dashboard-state-group dd, .dashboard-state-group h3 strong')].every(node => node.textContent === '0')).toBe(true)
+    expect(root.querySelectorAll('.dashboard-distribution li')).toHaveLength(7)
   })
 })
