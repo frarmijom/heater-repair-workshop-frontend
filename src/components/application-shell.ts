@@ -17,7 +17,7 @@ export function generateApplicationShellHtml(content: string): string {
           <a href="#dashboard" lang="en"><svg class="sidebar-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true" focusable="false"><path d="M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h7v7h-7z"/></svg><span class="sidebar-label">Dashboard</span></a>
           <section aria-labelledby="sidebar-operation">
             <h2 id="sidebar-operation">OPERACIÓN</h2>
-            <a href="#repairs"><svg class="sidebar-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true" focusable="false"><path d="M14 5a5 5 0 0 0-6 6l-5 5 5 5 5-5a5 5 0 0 0 6-6l-4 3-3-3 2-5Z"/></svg><span class="sidebar-label">Reparaciones</span></a>
+            <a href="#work-orders"><svg class="sidebar-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true" focusable="false"><path d="M14 5a5 5 0 0 0-6 6l-5 5 5 5 5-5a5 5 0 0 0 6-6l-4 3-3-3 2-5Z"/></svg><span class="sidebar-label">Órdenes de trabajo</span></a>
             <button type="button" disabled><svg class="sidebar-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true" focusable="false"><path d="M8 10a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm-6 12v-5a6 6 0 0 1 12 0v5M17 4a4 4 0 0 1 0 8m1 3a4 4 0 0 1 4 4v3"/></svg><span class="sidebar-label">Clientes</span> <small>Próximamente</small></button>
           </section>
           <section aria-labelledby="sidebar-inventory">
@@ -44,7 +44,7 @@ export function generateApplicationShellHtml(content: string): string {
       <div class="app-shell__workspace">
       ${generateTopbarHtml()}
       <main id="main-content" class="workshop app-shell__main" lang="es" tabindex="-1">
-        <p id="repair-action-status" role="status"></p>
+        <p id="work-order-action-status" role="status"></p>
         ${content}
       </main>
       </div>
@@ -52,17 +52,17 @@ export function generateApplicationShellHtml(content: string): string {
   `
 }
 
-export function selectedRepairId(): string | null {
-  const match = /^#repairs\/([^/]+)$/.exec(window.location.hash)
+export function selectedWorkOrderId(): string | null {
+  const match = /^#work-orders\/([^/]+)$/.exec(window.location.hash)
   if (!match || ['new', 'search'].includes(match[1]!)) return null
   try { return decodeURIComponent(match[1]) } catch { return null }
 }
 
 export function selectedDestination(): string {
-  if (window.location.hash === '#repairs/new') return 'repair-new'
-  if (window.location.hash === '#repairs/search') return 'repair-search'
-  if (selectedRepairId() !== null) return 'repair-detail'
-  return window.location.hash === '#repairs' ? 'repairs' : 'dashboard'
+  if (window.location.hash === '#work-orders/new') return 'work-order-new'
+  if (window.location.hash === '#work-orders/search') return 'work-order-search'
+  if (selectedWorkOrderId() !== null) return 'work-order-detail'
+  return window.location.hash === '#work-orders' ? 'work-orders' : 'dashboard'
 }
 
 export function updateShellDestination(root: HTMLElement, focusHeading = false): void {
@@ -71,7 +71,7 @@ export function updateShellDestination(root: HTMLElement, focusHeading = false):
     window.history.replaceState(null, '', '#dashboard')
   }
   root.querySelectorAll<HTMLAnchorElement>('.app-shell__nav a').forEach(link => {
-    if (link.hash === `#${destination === 'dashboard' ? 'dashboard' : 'repairs'}`) link.setAttribute('aria-current', 'page')
+    if (link.hash === `#${destination === 'dashboard' ? 'dashboard' : 'work-orders'}`) link.setAttribute('aria-current', 'page')
     else link.removeAttribute('aria-current')
   })
   root.querySelectorAll<HTMLElement>('[data-destination]').forEach(panel => {

@@ -1,13 +1,13 @@
 // @vitest-environment jsdom
 import { ServiceType } from '../src/models/index.ts'
 import { expect, it, vi } from 'vitest'
-import { generateRepairOrderFormHtml, setupRepairOrderForm } from '../src/components/repair-order-form.ts'
+import { generateWorkOrderFormHtml, setupWorkOrderForm } from '../src/components/work-order-form.ts'
 
 it('submits creation once while pending and preserves input for retry after failure', async () => {
-  document.body.innerHTML = generateRepairOrderFormHtml()
+  document.body.innerHTML = generateWorkOrderFormHtml()
   let rejectRequest: (error: Error) => void = () => {}
   const create = vi.fn(() => new Promise<void>((_, reject) => { rejectRequest = reject }))
-  setupRepairOrderForm(document.body, create)
+  setupWorkOrderForm(document.body, create)
   const payload = { customerName: 'Customer', customerContact: '+56911112222', heaterBrand: 'Bosch', heaterModel: 'Therm', serviceType: ServiceType.REPAIR, reportedIssue: 'No heat' }
   for (const [name, value] of Object.entries(payload)) {
     if (name === 'serviceType') continue

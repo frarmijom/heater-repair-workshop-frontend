@@ -1,15 +1,15 @@
-import { ServiceType, type CreateRepairOrderPayload } from '../models/index.ts'
+import { ServiceType, type CreateWorkOrderPayload } from '../models/index.ts'
 import { serviceTypePresentation } from './service-type-presentation.ts'
 
 const phonePrefix = '+569'
 const phoneFormatError = 'Ingresa exactamente 8 dígitos, sin el prefijo +569.'
 
-export type RepairOrderFormPayload = CreateRepairOrderPayload
+export type WorkOrderFormPayload = CreateWorkOrderPayload
 
-type FormField = keyof RepairOrderFormPayload
+type FormField = keyof WorkOrderFormPayload
 type FormErrors = Partial<Record<FormField, string>>
 
-function validatePayload(payload: RepairOrderFormPayload, phoneDigits: string): FormErrors {
+function validatePayload(payload: WorkOrderFormPayload, phoneDigits: string): FormErrors {
   const errors: FormErrors = {}
 
   if (payload.customerName.trim().length === 0) {
@@ -41,11 +41,11 @@ function validatePayload(payload: RepairOrderFormPayload, phoneDigits: string): 
   return errors
 }
 
-export function generateRepairOrderFormHtml(): string {
+export function generateWorkOrderFormHtml(): string {
   return `
-    <section class="order-form-panel repairs-surface" aria-label="Datos de la nueva reparación">
-      <form id="repair-order-form" class="order-form" novalidate>
-        <fieldset class="repair-form-group"><legend>Cliente</legend>
+    <section class="order-form-panel work-orders-surface" aria-label="Datos de la nueva orden de trabajo">
+      <form id="work-order-form" class="order-form" novalidate>
+        <fieldset class="work-order-form-group"><legend>Cliente</legend>
         <div class="form-field">
           <label for="customer-name">Nombre del cliente <span class="required-mark" aria-hidden="true">*</span></label>
           <input id="customer-name" name="customerName" type="text" required autocomplete="name" aria-describedby="customer-name-error" />
@@ -54,16 +54,16 @@ export function generateRepairOrderFormHtml(): string {
 
         <div class="form-field">
           <label for="customer-phone">Teléfono <span class="required-mark" aria-hidden="true">*</span></label>
-          <div class="repair-phone-control">
-            <span id="customer-phone-prefix" class="repair-phone-prefix">${phonePrefix}</span>
+          <div class="work-order-phone-control">
+            <span id="customer-phone-prefix" class="work-order-phone-prefix">${phonePrefix}</span>
             <input id="customer-phone" name="customerContact" type="tel" required autocomplete="tel-local" inputmode="numeric" maxlength="8" pattern="[0-9]{8}" placeholder="12345678" aria-describedby="customer-phone-prefix customer-phone-help customer-phone-error" />
           </div>
-          <span id="customer-phone-help" class="repair-field-help">Escribe los 8 dígitos de tu móvil, sin el prefijo.</span>
+          <span id="customer-phone-help" class="work-order-field-help">Escribe los 8 dígitos de tu móvil, sin el prefijo.</span>
           <small id="customer-phone-error" data-error-for="customerContact"></small>
         </div>
 
         </fieldset>
-        <fieldset class="repair-form-group"><legend>Calefont</legend>
+        <fieldset class="work-order-form-group"><legend>Calefont</legend>
         <div class="form-field">
           <label for="heater-brand">Marca del calefont <span class="required-mark" aria-hidden="true">*</span></label>
           <input id="heater-brand" name="heaterBrand" type="text" required autocomplete="off" aria-describedby="heater-brand-error" />
@@ -77,9 +77,9 @@ export function generateRepairOrderFormHtml(): string {
         </div>
 
         </fieldset>
-        <fieldset class="repair-service-selector" aria-describedby="service-type-error">
+        <fieldset class="work-order-service-selector" aria-describedby="service-type-error">
           <legend>Tipo de servicio <span class="required-mark" aria-hidden="true">*</span></legend>
-          <div class="repair-service-options">${Object.values(ServiceType).map(type => `
+          <div class="work-order-service-options">${Object.values(ServiceType).map(type => `
             <label for="service-type-${type}">
               <input id="service-type-${type}" type="radio" name="serviceType" value="${type}" required ${type === ServiceType.REPAIR ? 'checked' : ''} aria-describedby="service-type-error" />
               <span>${serviceTypePresentation[type].label}</span>
@@ -94,19 +94,19 @@ export function generateRepairOrderFormHtml(): string {
 
         <div class="order-form__actions form-field--wide">
           <p id="form-submit-status" aria-live="polite">Los campos marcados con * son obligatorios.</p>
-          <a class="repairs-secondary-action" href="#repairs">Cancelar</a>
-          <button type="submit">Crear reparación</button>
+          <a class="work-orders-secondary-action" href="#work-orders">Cancelar</a>
+          <button type="submit">Crear orden de trabajo</button>
         </div>
       </form>
     </section>
   `
 }
 
-export function setupRepairOrderForm(
+export function setupWorkOrderForm(
   root: ParentNode,
-  onValidSubmit: (payload: RepairOrderFormPayload) => Promise<void>,
+  onValidSubmit: (payload: WorkOrderFormPayload) => Promise<void>,
 ): void {
-  const form = root.querySelector('#repair-order-form') as HTMLFormElement | null
+  const form = root.querySelector('#work-order-form') as HTMLFormElement | null
   const customerNameInput = root.querySelector('#customer-name') as HTMLInputElement | null
   const customerContactInput = root.querySelector('#customer-phone') as HTMLInputElement | null
   const brandInput = root.querySelector('#heater-brand') as HTMLInputElement | null
@@ -146,7 +146,7 @@ export function setupRepairOrderForm(
     ...serviceInputs,
   ]
 
-  const readPayload = (): RepairOrderFormPayload => ({
+  const readPayload = (): WorkOrderFormPayload => ({
       customerName: customerNameInput.value.trim(),
       customerContact: `${phonePrefix}${customerContactInput.value}`,
       serviceType: serviceInputs.find(input => input.checked)?.value as ServiceType,
@@ -242,16 +242,16 @@ export function setupRepairOrderForm(
       submitting = true
       form.setAttribute('aria-busy', 'true')
       submitButton.disabled = true
-      submitButton.textContent = 'Creando reparación…'
-      submitStatus.textContent = 'Registrando reparación…'
+      submitButton.textContent = 'Creando orden de trabajo…'
+      submitStatus.textContent = 'Registrando orden de trabajo…'
 
       try {
         await onValidSubmit(payload)
         form.reset()
-        submitStatus.textContent = 'Reparación creada correctamente.'
+        submitStatus.textContent = 'Orden de trabajo creada correctamente.'
         form.removeAttribute('aria-busy')
         submitButton.disabled = false
-        submitButton.textContent = 'Crear reparación'
+        submitButton.textContent = 'Crear orden de trabajo'
         hasAttemptedSubmit = false
         rejectedPhonePaste = false
         touchedFields.clear()
@@ -261,11 +261,11 @@ export function setupRepairOrderForm(
         submitStatus.textContent =
           error instanceof Error
             ? error.message
-            : 'No se pudo crear la reparación.'
+            : 'No se pudo crear la orden de trabajo.'
         submitStatus.classList.add('form-submit-status--error')
         form.setAttribute('aria-busy', 'false')
         submitButton.disabled = false
-        submitButton.textContent = 'Crear reparación'
+        submitButton.textContent = 'Crear orden de trabajo'
       } finally {
         submitting = false
       }
@@ -273,4 +273,3 @@ export function setupRepairOrderForm(
   })
 
 }
-

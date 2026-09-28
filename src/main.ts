@@ -1,33 +1,33 @@
+import { workOrderActions, type WorkOrderAction } from './components/work-order-actions.ts'
 import './style.css'
 import { generatePageHeaderHtml } from './components/page-header.ts'
 import { generateLoginScreenHtml, setupPasswordVisibility } from './components/login-screen.ts'
 import { checkSession, login, logout } from './services/auth-service.ts'
 import { SessionExpiredError, setSessionExpiredHandler } from './services/api.ts'
-import { generateApplicationShellHtml, updateShellDestination, selectedRepairId, selectedDestination, setupSidebar } from './components/application-shell.ts'
-import { generateRepairDetailHtml } from './components/repair-detail.ts'
-import { generateRepairResultsHtml } from './components/repair-results.ts'
+import { generateApplicationShellHtml, updateShellDestination, selectedWorkOrderId, selectedDestination, setupSidebar } from './components/application-shell.ts'
+import { generateWorkOrderDetailHtml } from './components/work-order-detail.ts'
+import { generateWorkOrderResultsHtml } from './components/work-order-results.ts'
 import {
-  generateRepairOrderFormHtml,
-  setupRepairOrderForm,
-} from './components/repair-order-form.ts'
-import type { RepairOrderFormPayload } from './components/repair-order-form.ts'
+  generateWorkOrderFormHtml,
+  setupWorkOrderForm,
+} from './components/work-order-form.ts'
+import type { WorkOrderFormPayload } from './components/work-order-form.ts'
 import {
-  generateRepairOrderFiltersHtml,
-  isRepairOrderFilter,
-} from './components/repair-order-filters.ts'
-import type { RepairOrderFilter } from './components/repair-order-filters.ts'
+  generateWorkOrderFiltersHtml,
+  isWorkOrderFilter,
+} from './components/work-order-filters.ts'
+import type { WorkOrderFilter } from './components/work-order-filters.ts'
 import { generateWorkshopMonitorHtml } from './components/workshop-monitor.ts'
-import type { RepairOrder } from './models/index.ts'
+import type { WorkOrder } from './models/index.ts'
 import {
-  completeRepairOrder,
-  createRepairOrder,
-  loadRepairOrders,
-  startRepairOrder,
-} from './services/repair-order-service.ts'
+  performWorkOrderAction,
+  createWorkOrder,
+  loadWorkOrders,
+} from './services/work-order-service.ts'
 
-let repairOrders: RepairOrder[] = []
-let selectedFilter: RepairOrderFilter = 'all'
-let resultFilter: RepairOrderFilter = 'all'
+let workOrders: WorkOrder[] = []
+let selectedFilter: WorkOrderFilter = 'all'
+let resultFilter: WorkOrderFilter = 'all'
 let hasSearched = false
 let searching = false
 let collectionLoaded = false
@@ -35,8 +35,8 @@ let collectionPending: Promise<boolean> | undefined
 let collectionError = ''
 let collectionRevision = 0
 
-let renderedDetailOrder: RepairOrder | undefined
-const pendingRepairActions = new Set<string>()
+let renderedDetailOrder: WorkOrder | undefined
+const pendingWorkOrderActions = new Set<string>()
 let authenticated = false
 let viewGeneration = 0
 let clockIntervalId: number | undefined
@@ -54,7 +54,7 @@ const appContainer: HTMLDivElement = app
 function getErrorMessage(error: unknown): string {
   return error instanceof Error
     ? error.message
-    : 'No se pudieron cargar las reparaciones.'
+    : 'No se pudieron cargar las órdenes de trabajo.'
 }
 
 function showLoadingState(): void {
@@ -75,7 +75,7 @@ function showErrorState(error: unknown): void {
       <span class="request-state__mark" aria-hidden="true">!</span>
       <div>
         <p>Error de carga</p>
-        <h1>Las reparaciones no están disponibles.</h1>
+        <h1>Las órdenes de trabajo no están disponibles.</h1>
         <p id="load-error-message" class="request-state__message"></p>
         <button id="retry-load" type="button">Reintentar</button>
       </div>
@@ -133,24 +133,24 @@ function startClock(): void {
   clockIntervalId = window.setInterval(updateClock, 1000)
 }
 
-async function addRepairOrder(payload: RepairOrderFormPayload): Promise<void> {
+async function addWorkOrder(payload: WorkOrderFormPayload): Promise<void> {
   const generation = viewGeneration
   try {
-    const createdOrder = await createRepairOrder(payload)
+    const createdOrder = await createWorkOrder(payload)
     if (!authenticated || generation !== viewGeneration) return
-    repairOrders = [...repairOrders, createdOrder]
+    workOrders = [...workOrders, createdOrder]
     collectionRevision++
     refreshDataViews()
-    appContainer.querySelector<HTMLElement>('#repair-action-status')!.textContent = 'Reparación creada correctamente.'
-    if (selectedDestination() === 'repair-new') window.location.hash = `#repairs/${encodeURIComponent(createdOrder.id)}`
+    appContainer.querySelector<HTMLElement>('#work-order-action-status')!.textContent = 'Orden de trabajo creada correctamente.'
+    if (selectedDestination() === 'work-order-new') window.location.hash = `#work-orders/${encodeURIComponent(createdOrder.id)}`
   } catch (error: unknown) {
     throw new Error(getErrorMessage(error))
   }
 }
 
-function replaceRepairOrder(updatedOrder: RepairOrder): void {
+function replaceWorkOrder(updatedOrder: WorkOrder): void {
   if (!authenticated) return
-  repairOrders = repairOrders.map((order) =>
+  workOrders = workOrders.map((order) =>
     order.id === updatedOrder.id ? updatedOrder : order,
   )
   collectionRevision++
@@ -159,8 +159,8 @@ function replaceRepairOrder(updatedOrder: RepairOrder): void {
 
 function queryFeedbackHtml(): string {
   return collectionError
-    ? `<div class="request-state request-state--error" role="alert"><p>No se pudieron cargar las reparaciones.</p><button id="retry-load" type="button">Reintentar</button></div>`
-    : '<div class="request-state" role="status" aria-busy="true"><p>Cargando reparaciones…</p></div>'
+    ? `<div class="request-state request-state--error" role="alert"><p>No se pudieron cargar las órdenes de trabajo.</p><button id="retry-load" type="button">Reintentar</button></div>`
+    : '<div class="request-state" role="status" aria-busy="true"><p>Cargando órdenes de trabajo…</p></div>'
 }
 
 // One collection request per session at a time. Mutations completed while a GET is
@@ -173,10 +173,10 @@ async function ensureCollection(): Promise<boolean> {
   collectionError = ''
   const pending = (async () => {
     try {
-      const orders = await loadRepairOrders()
+      const orders = await loadWorkOrders()
       if (!authenticated || generation !== viewGeneration) return false
-      repairOrders = revision === collectionRevision ? orders : [
-        ...orders.filter(order => !repairOrders.some(current => current.id === order.id)), ...repairOrders,
+      workOrders = revision === collectionRevision ? orders : [
+        ...orders.filter(order => !workOrders.some(current => current.id === order.id)), ...workOrders,
       ]
       collectionLoaded = true
       return true
@@ -192,41 +192,41 @@ async function ensureCollection(): Promise<boolean> {
 }
 
 function refreshSearchResults(): void {
-  const results = appContainer.querySelector<HTMLElement>('#repair-search-results')
+  const results = appContainer.querySelector<HTMLElement>('#work-order-search-results')
   if (!results) return
   results.hidden = !hasSearched
-  const initial = appContainer.querySelector<HTMLElement>('#repair-search-initial')!
+  const initial = appContainer.querySelector<HTMLElement>('#work-order-search-initial')!
   initial.hidden = hasSearched || searching
   if (!hasSearched) { results.innerHTML = ''; return }
-  appContainer.querySelectorAll<HTMLButtonElement>('[data-repair-status]').forEach(button => {
-    const filter = button.dataset.repairStatus
+  appContainer.querySelectorAll<HTMLButtonElement>('[data-work-order-status]').forEach(button => {
+    const filter = button.dataset.workOrderStatus
     let count = button.querySelector('strong')
     if (!count) { count = document.createElement('strong'); button.append(count) }
-    count.textContent = String(repairOrders.filter(order => filter === 'all' || order.status === filter).length)
+    count.textContent = String(workOrders.filter(order => filter === 'all' || order.status === filter).length)
   })
-  const visible = repairOrders.filter(order => resultFilter === 'all' || order.status === resultFilter)
-  results.innerHTML = `<div class="repair-list__heading"><h2 id="repair-results-title" tabindex="-1">Resultados</h2><p id="visible-order-count" role="status">${visible.length} reparaciones</p></div><div id="repair-order-list">${generateRepairResultsHtml(visible)}</div>`
+  const visible = workOrders.filter(order => resultFilter === 'all' || order.status === resultFilter)
+  results.innerHTML = `<div class="work-order-list__heading"><h2 id="work-order-results-title" tabindex="-1">Resultados</h2><p id="visible-order-count" role="status">${visible.length} órdenes de trabajo</p></div><div id="work-order-list">${generateWorkOrderResultsHtml(visible)}</div>`
 }
 
 function refreshDataViews(): void {
   const previousFocus = document.activeElement
   const dashboard = appContainer.querySelector<HTMLElement>('#dashboard-content')
-  if (dashboard && collectionLoaded) dashboard.innerHTML = generateWorkshopMonitorHtml(repairOrders)
+  if (dashboard && collectionLoaded) dashboard.innerHTML = generateWorkshopMonitorHtml(workOrders)
   refreshSearchResults()
-  updateRepairDetail()
+  updateWorkOrderDetail()
   if (previousFocus instanceof HTMLElement && previousFocus !== document.body && !previousFocus.isConnected) {
     updateShellDestination(appContainer, true)
   }
 }
 
 function setupRepairSearch(): void {
-  const form = appContainer.querySelector<HTMLFormElement>('#repair-search-form')!
-  const buttons = form.querySelectorAll<HTMLButtonElement>('[data-repair-status]')
+  const form = appContainer.querySelector<HTMLFormElement>('#work-order-search-form')!
+  const buttons = form.querySelectorAll<HTMLButtonElement>('[data-work-order-status]')
   buttons.forEach(button => {
-    button.setAttribute('aria-pressed', String(button.dataset.repairStatus === selectedFilter))
+    button.setAttribute('aria-pressed', String(button.dataset.workOrderStatus === selectedFilter))
     button.addEventListener('click', () => {
-      const filter = button.dataset.repairStatus
-      if (filter && isRepairOrderFilter(filter)) {
+      const filter = button.dataset.workOrderStatus
+      if (filter && isWorkOrderFilter(filter)) {
         selectedFilter = filter
         buttons.forEach(control => control.setAttribute('aria-pressed', String(control === button)))
       }
@@ -243,9 +243,9 @@ function setupRepairSearch(): void {
     submit.disabled = true
     buttons.forEach(button => { button.disabled = true })
     form.setAttribute('aria-busy', 'true')
-    const feedback = appContainer.querySelector<HTMLElement>('#repair-search-feedback')!
-    feedback.textContent = 'Buscando reparaciones…'
-    appContainer.querySelector<HTMLElement>('#repair-search-error')!.textContent = ''
+    const feedback = appContainer.querySelector<HTMLElement>('#work-order-search-feedback')!
+    feedback.textContent = 'Buscando órdenes de trabajo…'
+    appContainer.querySelector<HTMLElement>('#work-order-search-error')!.textContent = ''
     refreshSearchResults()
     const loaded = await ensureCollection()
     if (!authenticated || generation !== viewGeneration) return
@@ -258,9 +258,9 @@ function setupRepairSearch(): void {
       hasSearched = true
       resultFilter = filter
       refreshDataViews()
-      if (selectedDestination() === 'repair-search') appContainer.querySelector<HTMLElement>('#repair-results-title')?.focus()
+      if (selectedDestination() === 'work-order-search') appContainer.querySelector<HTMLElement>('#work-order-results-title')?.focus()
     } else {
-      appContainer.querySelector<HTMLElement>('#repair-search-error')!.textContent = collectionError
+      appContainer.querySelector<HTMLElement>('#work-order-search-error')!.textContent = collectionError
       refreshSearchResults()
     }
   })
@@ -270,58 +270,58 @@ function renderWorkshop(): void {
   if (!authenticated) return
   renderApplicationContent(`
     <section data-destination="dashboard" aria-labelledby="dashboard-title">
-      ${generatePageHeaderHtml({ id: 'dashboard-title', title: 'Dashboard', description: 'Resumen general del taller de reparaciones', contextHtml: '<time id="workshop-clock" class="workshop__clock"></time>' })}
+      ${generatePageHeaderHtml({ id: 'dashboard-title', title: 'Dashboard', description: 'Resumen general del taller de órdenes de trabajo', contextHtml: '<time id="workshop-clock" class="workshop__clock"></time>' })}
       <div id="dashboard-content"></div>
     </section>
-    <section class="repairs-module" lang="es" data-destination="repairs" aria-labelledby="repairs-title" hidden>
-      ${generatePageHeaderHtml({ id: 'repairs-title', title: 'Reparaciones', description: 'Gestión de las reparaciones del taller' })}
-      <div class="repairs-capabilities">
-        <section class="repairs-surface"><span class="repairs-capability-icon" aria-hidden="true">＋</span><h2>Nueva reparación</h2><p>Registrar un nuevo ingreso de calefont al taller.</p><a class="repairs-primary-action" href="#repairs/new">Crear reparación →</a></section>
-        <section class="repairs-surface"><span class="repairs-capability-icon" aria-hidden="true">⌕</span><h2>Consultar reparaciones</h2><p>Buscar y revisar reparaciones existentes.</p><a class="repairs-primary-action" href="#repairs/search">Ir a búsqueda →</a></section>
+    <section class="work-orders-module" lang="es" data-destination="work-orders" aria-labelledby="work-orders-title" hidden>
+      ${generatePageHeaderHtml({ id: 'work-orders-title', title: 'Órdenes de trabajo', description: 'Gestión de las órdenes de trabajo del taller' })}
+      <div class="work-orders-capabilities">
+        <section class="work-orders-surface"><span class="work-orders-capability-icon" aria-hidden="true">＋</span><h2>Nueva orden de trabajo</h2><p>Registrar un nuevo ingreso de calefont al taller.</p><a class="work-orders-primary-action" href="#work-orders/new">Crear orden de trabajo →</a></section>
+        <section class="work-orders-surface"><span class="work-orders-capability-icon" aria-hidden="true">⌕</span><h2>Consultar órdenes de trabajo</h2><p>Buscar y revisar órdenes de trabajo existentes.</p><a class="work-orders-primary-action" href="#work-orders/search">Ir a búsqueda →</a></section>
       </div>
     </section>
-    <section class="repairs-module" lang="es" data-destination="repair-new" aria-labelledby="repair-new-title" hidden>
-      <nav class="repairs-breadcrumb" aria-label="Ruta de navegación"><a href="#repairs">Reparaciones</a><span aria-hidden="true"> / </span><span aria-current="page">Nueva reparación</span></nav>
-      ${generatePageHeaderHtml({ id: 'repair-new-title', title: 'Nueva reparación', description: 'Registra el ingreso de un calefont al taller.' })}
-      ${generateRepairOrderFormHtml()}
+    <section class="work-orders-module" lang="es" data-destination="work-order-new" aria-labelledby="work-order-new-title" hidden>
+      <nav class="work-orders-breadcrumb" aria-label="Ruta de navegación"><a href="#work-orders">Órdenes de trabajo</a><span aria-hidden="true"> / </span><span aria-current="page">Nueva orden de trabajo</span></nav>
+      ${generatePageHeaderHtml({ id: 'work-order-new-title', title: 'Nueva orden de trabajo', description: 'Registra el ingreso de un calefont al taller.' })}
+      ${generateWorkOrderFormHtml()}
     </section>
-    <section class="repairs-module" lang="es" data-destination="repair-search" aria-labelledby="repair-search-title" hidden>
-      <nav class="repairs-breadcrumb" aria-label="Ruta de navegación"><a href="#repairs">Reparaciones</a><span aria-hidden="true"> / </span><span aria-current="page">Consultar</span></nav>
-      ${generatePageHeaderHtml({ id: 'repair-search-title', title: 'Consultar reparaciones', description: 'Busca y filtra reparaciones por los criterios disponibles.' })}
-      <form id="repair-search-form" class="repairs-surface" aria-labelledby="repair-query-title">
-        <h2 id="repair-query-title">Buscar reparaciones</h2>
-        <fieldset><legend>Estado de la reparación</legend><div class="repair-filters">${generateRepairOrderFiltersHtml([], false)}</div></fieldset>
-        <button type="submit">Buscar</button><p id="repair-search-feedback" role="status"></p><p id="repair-search-error" role="alert"></p>
+    <section class="work-orders-module" lang="es" data-destination="work-order-search" aria-labelledby="work-order-search-title" hidden>
+      <nav class="work-orders-breadcrumb" aria-label="Ruta de navegación"><a href="#work-orders">Órdenes de trabajo</a><span aria-hidden="true"> / </span><span aria-current="page">Consultar</span></nav>
+      ${generatePageHeaderHtml({ id: 'work-order-search-title', title: 'Consultar órdenes de trabajo', description: 'Busca y filtra órdenes de trabajo por los criterios disponibles.' })}
+      <form id="work-order-search-form" class="work-orders-surface" aria-labelledby="work-order-query-title">
+        <h2 id="work-order-query-title">Buscar órdenes de trabajo</h2>
+        <fieldset><legend>Estado de la orden de trabajo</legend><div class="work-order-filters">${generateWorkOrderFiltersHtml([], false)}</div></fieldset>
+        <button type="submit">Buscar</button><p id="work-order-search-feedback" role="status"></p><p id="work-order-search-error" role="alert"></p>
       </form>
-      <div id="repair-search-initial" class="repairs-empty"><h2>Selecciona un criterio de consulta</h2><p>Utiliza los filtros disponibles y pulsa Buscar para consultar reparaciones.</p></div>
-      <section id="repair-search-results" class="repairs-surface" aria-labelledby="repair-results-title" hidden></section>
+      <div id="work-order-search-initial" class="work-orders-empty"><h2>Selecciona un criterio de consulta</h2><p>Utiliza los filtros disponibles y pulsa Buscar para consultar órdenes de trabajo.</p></div>
+      <section id="work-order-search-results" class="work-orders-surface" aria-labelledby="work-order-results-title" hidden></section>
     </section>
-    <section class="repair-detail repairs-module" lang="es" data-destination="repair-detail" aria-labelledby="repair-detail-title" hidden></section>
+    <section class="work-order-detail work-orders-module" lang="es" data-destination="work-order-detail" aria-labelledby="work-order-detail-title" hidden></section>
   `)
   startClock()
-  setupRepairOrderForm(appContainer, addRepairOrder)
+  setupWorkOrderForm(appContainer, addWorkOrder)
   setupRepairSearch()
   refreshDataViews()
 }
 
 async function loadDestination(focusHeading = false): Promise<void> {
   const destination = selectedDestination()
-  const needsCollection = destination === 'dashboard' || (destination === 'repair-detail' && !repairOrders.some(order => order.id === selectedRepairId()))
-  updateRepairDetail()
+  const needsCollection = destination === 'dashboard' || (destination === 'work-order-detail' && !workOrders.some(order => order.id === selectedWorkOrderId()))
+  updateWorkOrderDetail()
   updateShellDestination(appContainer, focusHeading)
   if (!needsCollection || collectionLoaded) return
   const generation = viewGeneration
-  const container = appContainer.querySelector<HTMLElement>(destination === 'dashboard' ? '#dashboard-content' : '[data-destination="repair-detail"]')
+  const container = appContainer.querySelector<HTMLElement>(destination === 'dashboard' ? '#dashboard-content' : '[data-destination="work-order-detail"]')
   if (container) {
-    container.innerHTML = (destination === 'repair-detail' ? '<h1 id="repair-detail-title" tabindex="-1">Detalle de reparación</h1>' : '') + queryFeedbackHtml()
-    if (destination === 'repair-detail') renderedDetailOrder = undefined
+    container.innerHTML = (destination === 'work-order-detail' ? '<h1 id="work-order-detail-title" tabindex="-1">Detalle de orden de trabajo</h1>' : '') + queryFeedbackHtml()
+    if (destination === 'work-order-detail') renderedDetailOrder = undefined
     updateShellDestination(appContainer, focusHeading)
   }
   const loaded = await ensureCollection()
   if (!authenticated || generation !== viewGeneration) return
   refreshDataViews()
   if (!loaded && selectedDestination() === destination && container?.isConnected) {
-    container.innerHTML = (destination === 'repair-detail' ? '<h1 id="repair-detail-title" tabindex="-1">Detalle de reparación</h1>' : '') + queryFeedbackHtml()
+    container.innerHTML = (destination === 'work-order-detail' ? '<h1 id="work-order-detail-title" tabindex="-1">Detalle de orden de trabajo</h1>' : '') + queryFeedbackHtml()
     container.querySelector('#retry-load')?.addEventListener('click', () => {
       collectionError = ''
       void loadDestination(true)
@@ -341,7 +341,7 @@ function renderApplicationContent(content: string): void {
   appContainer.innerHTML = generateApplicationShellHtml(content)
   disposeSidebar = setupSidebar(appContainer, sidebarState)
   renderedDetailOrder = undefined
-  updateRepairDetail()
+  updateWorkOrderDetail()
   updateShellDestination(appContainer)
   appContainer.querySelector('.app-shell__skip')!.addEventListener('click', () => {
     appContainer.querySelector<HTMLElement>('#main-content')!.focus()
@@ -367,19 +367,20 @@ window.addEventListener('hashchange', () => {
   }
 })
 
-function updateRepairDetail(): void {
-  const container = appContainer.querySelector<HTMLElement>('[data-destination="repair-detail"]')
-  const id = selectedRepairId()
+function updateWorkOrderDetail(): void {
+  const container = appContainer.querySelector<HTMLElement>('[data-destination="work-order-detail"]')
+  const id = selectedWorkOrderId()
   if (!container || id === null) return
-  const order = repairOrders.find(repair => repair.id === id)
+  const order = workOrders.find(order => order.id === id)
   if (!order && !collectionLoaded) { renderedDetailOrder = undefined; return }
   if (order && renderedDetailOrder === order && container.childElementCount > 0) return
   renderedDetailOrder = order
-  container.innerHTML = generateRepairDetailHtml(order)
+  container.innerHTML = generateWorkOrderDetailHtml(order)
   if (!order) return
   const form = container.querySelector<HTMLFormElement>('#diagnosis-form')
-  const input = container.querySelector<HTMLTextAreaElement>('#repair-diagnosis')
-  const button = container.querySelector<HTMLButtonElement>('button[data-repair-action]')
+  const input = container.querySelector<HTMLTextAreaElement>('#work-order-diagnosis')
+  const buttons = [...container.querySelectorAll<HTMLButtonElement>('button[data-work-order-action]')]
+  const button = buttons[0]
   const errorElement = container.querySelector<HTMLElement>('#detail-action-error')
   if (!button || !errorElement) return
   const generation = viewGeneration
@@ -389,12 +390,12 @@ function updateRepairDetail(): void {
   const cancel = container.querySelector<HTMLButtonElement>('#cancel-complete')
   const idleLabel = button.textContent
   const setPending = (pending: boolean): void => {
-    button.disabled = pending
+    buttons.forEach(control => { control.disabled = pending })
     if (opener) opener.disabled = pending
     if (cancel) cancel.disabled = pending
     actions.setAttribute('aria-busy', String(pending))
     form?.setAttribute('aria-busy', String(pending))
-    button.textContent = pending ? (input ? 'Iniciando reparación…' : 'Completando reparación…') : idleLabel
+    button.textContent = pending ? 'Guardando cambio…' : idleLabel
   }
   const showConfirmation = (show: boolean, moveFocus = true): void => {
     if (!opener || !confirmation || !cancel) return
@@ -407,52 +408,57 @@ function updateRepairDetail(): void {
     }
   }
   opener?.addEventListener('click', () => {
-    if (!pendingRepairActions.has(order.id)) showConfirmation(true)
+    if (!pendingWorkOrderActions.has(order.id)) showConfirmation(true)
   })
   cancel?.addEventListener('click', () => {
-    if (pendingRepairActions.has(order.id)) return
+    if (pendingWorkOrderActions.has(order.id)) return
     errorElement.textContent = ''
     showConfirmation(false)
   })
-  if (pendingRepairActions.has(order.id)) {
+  if (pendingWorkOrderActions.has(order.id)) {
     if (confirmation) showConfirmation(true, false)
     setPending(true)
   }
-  const execute = async (): Promise<void> => {
-    if (pendingRepairActions.has(order.id) || (confirmation && confirmation.hidden)) return
+  const execute = async (action: WorkOrderAction): Promise<void> => {
+    if (pendingWorkOrderActions.has(order.id) || (action === 'complete' && confirmation?.hidden)) return
     const diagnosis = input?.value.trim()
     errorElement.textContent = ''
-    appContainer.querySelector<HTMLElement>('#repair-action-status')!.textContent = ''
-    if (input) {
+    appContainer.querySelector<HTMLElement>('#work-order-action-status')!.textContent = ''
+    if (action === 'diagnosis' && input) {
       input.setAttribute('aria-invalid', String(!diagnosis))
       if (!diagnosis) {
-        errorElement.textContent = 'Ingresa un diagnóstico para iniciar la reparación.'
+        errorElement.textContent = 'Ingresa un diagnóstico válido.'
         input.focus()
         return
       }
     }
-    pendingRepairActions.add(order.id)
+    const parts = container.querySelector<HTMLInputElement>('input[name="partsAvailable"]:checked')
+    if (action === 'approve' && !parts) {
+      errorElement.textContent = 'Indica si los repuestos están disponibles antes de registrar la aprobación.'
+      container.querySelector<HTMLInputElement>('input[name="partsAvailable"]')?.focus()
+      return
+    }
+    pendingWorkOrderActions.add(order.id)
     setPending(true)
     try {
-      const updated = input ? await startRepairOrder(order.id, diagnosis!) : await completeRepairOrder(order.id)
+      const updated = await performWorkOrderAction(order.id, action, action === 'diagnosis' ? { diagnosis: diagnosis! } : action === 'approve' ? { partsAvailable: parts!.value === 'true' } : undefined)
       if (!authenticated || generation !== viewGeneration) return
-      pendingRepairActions.delete(order.id)
-      replaceRepairOrder(updated)
-      appContainer.querySelector<HTMLElement>('#repair-action-status')!.textContent = input
-        ? 'Reparación iniciada correctamente.' : 'Reparación completada correctamente.'
-      if (selectedRepairId() === order.id) appContainer.querySelector<HTMLElement>('#repair-detail-title')?.focus()
+      pendingWorkOrderActions.delete(order.id)
+      replaceWorkOrder(updated)
+      appContainer.querySelector<HTMLElement>('#work-order-action-status')!.textContent = `${workOrderActions[action]}: cambio guardado.`
+      if (selectedWorkOrderId() === order.id) appContainer.querySelector<HTMLElement>('#work-order-detail-title')?.focus()
     } catch (error: unknown) {
       if (generation !== viewGeneration) return
       errorElement.textContent = getErrorMessage(error)
     } finally {
       if (generation === viewGeneration) {
-        pendingRepairActions.delete(order.id)
+        pendingWorkOrderActions.delete(order.id)
         // Navigation may have replaced the pending form. Restore retry feedback there too.
-        if (authenticated && selectedRepairId() === order.id && renderedDetailOrder === order && !button.isConnected) {
+        if (authenticated && selectedWorkOrderId() === order.id && renderedDetailOrder === order && !button.isConnected) {
           const restoreFocus = container.contains(document.activeElement)
           renderedDetailOrder = undefined
-          updateRepairDetail()
-          const currentInput = appContainer.querySelector<HTMLTextAreaElement>('#repair-diagnosis')
+          updateWorkOrderDetail()
+          const currentInput = appContainer.querySelector<HTMLTextAreaElement>('#work-order-diagnosis')
           if (currentInput && input) currentInput.value = input.value
           const currentError = appContainer.querySelector<HTMLElement>('#detail-action-error')
           if (currentError) {
@@ -467,8 +473,10 @@ function updateRepairDetail(): void {
       setPending(false)
     }
   }
-  if (form) form.addEventListener('submit', event => { event.preventDefault(); void execute() })
-  else button.addEventListener('click', () => { void execute() })
+  if (form) form.addEventListener('submit', event => { event.preventDefault(); void execute('diagnosis') })
+  buttons.filter(control => control.type !== 'submit').forEach(control => {
+    control.addEventListener('click', () => { void execute(control.dataset.workOrderAction as WorkOrderAction) })
+  })
 }
 
 function showLogin(message = ''): void {
@@ -477,7 +485,7 @@ function showLogin(message = ''): void {
   sidebarState.compact = false
   authenticated = false
   viewGeneration++
-  repairOrders = []
+  workOrders = []
   selectedFilter = 'all'
   resultFilter = 'all'
   hasSearched = false
@@ -486,7 +494,7 @@ function showLogin(message = ''): void {
   collectionPending = undefined
   collectionError = ''
   collectionRevision = 0
-  pendingRepairActions.clear()
+  pendingWorkOrderActions.clear()
   renderedDetailOrder = undefined
   if (clockIntervalId !== undefined) window.clearInterval(clockIntervalId)
   clockIntervalId = undefined

@@ -6,13 +6,13 @@ export function generateLoginScreenHtml(): string {
       <section class="login-screen__identity" aria-label="Heater Repair Workshop">
         <p class="login-screen__brand" lang="en"><span aria-hidden="true">HRW /</span> Heater Repair Workshop</p>
         <div class="login-screen__intro">
-          <p class="login-screen__eyebrow">Gestión técnica de reparaciones</p>
-          <h2>Cada reparación,<br>paso a paso.</h2>
-          <p>El trabajo de tu taller, desde el ingreso hasta la entrega.</p>
+          <p class="login-screen__eyebrow">Gestión técnica de órdenes de trabajo</p>
+          <h2>Cada orden de trabajo,<br>paso a paso.</h2>
+          <p>El trabajo de tu taller, desde el ingreso hasta el cierre.</p>
         </div>
         <div class="login-screen__technical">
           <ol class="login-screen__flow" aria-label="Flujo operacional">
-            <li>Cliente</li><li>Ingreso</li><li>Diagnóstico</li><li>Reparación</li><li>Entrega</li>
+            <li>Cliente</li><li>Ingreso</li><li>Servicio</li><li>Seguimiento</li><li>Cierre</li>
           </ol>
           <div class="login-screen__blueprint">${generateHeaterBlueprintHtml()}</div>
         </div>

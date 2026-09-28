@@ -1,4 +1,4 @@
-import { escapeHtml } from './repair-order-card.ts'
+import { escapeHtml } from './work-order-card.ts'
 
 interface PageHeaderOptions {
   id: string

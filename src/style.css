@@ -13,8 +13,8 @@
   --accent-dark: #a83e19;
   --received-bg: #e5edf2;
   --received-text: #315d76;
-  --repair-bg: #fae8bd;
-  --repair-text: #795b13;
+  --work-order-bg: #fae8bd;
+  --work-order-text: #795b13;
   --completed-bg: #dcecdf;
   --completed-text: #346244;
 }
@@ -427,7 +427,7 @@ body::before {
 }
 
 .dashboard-metric--received dt { color: var(--received-text); background: var(--received-bg); }
-.dashboard-metric--in-progress dt { color: var(--repair-text); background: var(--repair-bg); }
+.dashboard-metric--in-progress dt { color: var(--work-order-text); background: var(--work-order-bg); }
 .dashboard-metric--completed dt { color: var(--completed-text); background: var(--completed-bg); }
 
 .dashboard-metric dd {
@@ -441,7 +441,7 @@ body::before {
 
 .dashboard-summary__total { margin: 1.5rem 0 0; }
 
-.repair-list__heading {
+.work-order-list__heading {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -598,7 +598,7 @@ body::before {
   display: none !important;
 }
 
-.repair-filters {
+.work-order-filters {
   display: flex;
   flex-wrap: wrap;
   gap: 0.5rem;
@@ -626,10 +626,10 @@ body::before {
   text-decoration: underline;
   text-underline-offset: 4px;
 }
-.repair-list__heading h2 { margin: 0; font-size: 1.25rem; }
-.repair-list { display: grid; gap: 0; }
-.repair-list__empty { padding: 1.5rem; border: 1px solid var(--line); background: var(--paper); }
-.repair-card {
+.work-order-list__heading h2 { margin: 0; font-size: 1.25rem; }
+.work-order-list { display: grid; gap: 0; }
+.work-order-list__empty { padding: 1.5rem; border: 1px solid var(--line); background: var(--paper); }
+.work-order-card {
   display: grid;
   grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) minmax(0, 1.4fr) minmax(0, 1.2fr);
   align-items: start;
@@ -639,12 +639,12 @@ body::before {
   background: var(--paper);
   overflow-wrap: anywhere;
 }
-.repair-card + .repair-card { border-top: 0; }
-.repair-card > * { min-width: 0; }
-.repair-card__id { margin: 0 0 0.5rem; font-size: 0.75rem; }
-.repair-card h3 { margin: 0 0 0.5rem; font-size: 1rem; }
-.repair-card__customer { margin: 0; font-size: 0.8125rem; }
-.repair-card__status {
+.work-order-card + .work-order-card { border-top: 0; }
+.work-order-card > * { min-width: 0; }
+.work-order-card__id { margin: 0 0 0.5rem; font-size: 0.75rem; }
+.work-order-card h3 { margin: 0 0 0.5rem; font-size: 1rem; }
+.work-order-card__customer { margin: 0; font-size: 0.8125rem; }
+.work-order-card__status {
   display: inline-block;
   padding: 0.35rem 0.65rem;
   border-radius: 4px;
@@ -653,12 +653,12 @@ body::before {
   font-size: 0.875rem;
   font-weight: 650;
 }
-.repair-card__status--in-progress { color: var(--repair-text); background: var(--repair-bg); }
-.repair-card__status--completed { color: var(--completed-text); background: var(--completed-bg); }
-.repair-card__dates { display: grid; gap: 0.75rem; margin: 0; }
-.repair-card__dates dt { font-size: 0.75rem; font-weight: 650; margin-bottom: 0.25rem; }
-.repair-card__dates dd { margin: 0; font-size: 0.875rem; }
-.repair-card__actions button {
+.work-order-card__status--in-progress { color: var(--work-order-text); background: var(--work-order-bg); }
+.work-order-card__status--completed { color: var(--completed-text); background: var(--completed-bg); }
+.work-order-card__dates { display: grid; gap: 0.75rem; margin: 0; }
+.work-order-card__dates dt { font-size: 0.75rem; font-weight: 650; margin-bottom: 0.25rem; }
+.work-order-card__dates dd { margin: 0; font-size: 0.875rem; }
+.work-order-card__actions button {
   min-height: 44px;
   padding: 0.5rem 0.75rem;
   border: 0;
@@ -669,18 +669,18 @@ body::before {
   font-size: 0.875rem;
   cursor: pointer;
 }
-.repair-card__actions button:disabled { opacity: 0.65; cursor: wait; }
-.repair-card__action-error { margin: 0.5rem 0 0; color: var(--accent-dark); font-size: 0.875rem; }
-.repair-card__action-error:empty { margin: 0; }
-.repair-card__notes { grid-column: 1 / -1; font-size: 0.8125rem; }
-.repair-card__issue, .repair-card__diagnosis { margin: 0; }
-.repair-card__diagnosis { margin-top: 0.25rem; }
+.work-order-card__actions button:disabled { opacity: 0.65; cursor: wait; }
+.work-order-card__action-error { margin: 0.5rem 0 0; color: var(--accent-dark); font-size: 0.875rem; }
+.work-order-card__action-error:empty { margin: 0; }
+.work-order-card__notes { grid-column: 1 / -1; font-size: 0.8125rem; }
+.work-order-card__issue, .work-order-card__diagnosis { margin: 0; }
+.work-order-card__diagnosis { margin-top: 0.25rem; }
 
 @media (max-width: 900px) {
-  .repair-card { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .work-order-card { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 @media (max-width: 500px) {
-  .repair-card { grid-template-columns: minmax(0, 1fr); }
+  .work-order-card { grid-template-columns: minmax(0, 1fr); }
 }
 
 @media (max-width: 700px) {
@@ -848,37 +848,37 @@ body::before {
   .app-shell__main .request-state { flex-wrap: wrap; }
 }
 
-.repair-detail-link { display: inline-block; padding: 0.75rem 0; color: var(--accent-dark); }
-.repair-detail { overflow-wrap: anywhere; }
-.repair-detail > a { display: inline-block; min-height: 44px; color: var(--accent-dark); }
-.repair-detail h1 { margin-top: 1rem; }
-.repair-detail h2 { font-size: 1.25rem; }
-.repair-detail > section { margin-top: 2rem; }
-.repair-lifecycle {
+.work-order-detail-link { display: inline-block; padding: 0.75rem 0; color: var(--accent-dark); }
+.work-order-detail { overflow-wrap: anywhere; }
+.work-order-detail > a { display: inline-block; min-height: 44px; color: var(--accent-dark); }
+.work-order-detail h1 { margin-top: 1rem; }
+.work-order-detail h2 { font-size: 1.25rem; }
+.work-order-detail > section { margin-top: 2rem; }
+.work-order-lifecycle {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 1rem;
   padding: 0;
   list-style-position: inside;
 }
-.repair-lifecycle li { padding: 1rem; border: 1px solid var(--line); background: var(--paper); }
-.repair-lifecycle li[aria-current='step'] { border: 2px solid var(--ink); }
-.repair-lifecycle span, .repair-lifecycle small { display: block; margin-top: 0.5rem; }
-.repair-lifecycle li[aria-current='step'] span { font-weight: 700; text-decoration: underline; }
-.repair-detail__information { display: grid; gap: 1rem; }
-.repair-detail__information dt { font-weight: 650; }
-.repair-detail__information dd { margin: 0.35rem 0 0; white-space: pre-wrap; }
-.repair-detail form { display: grid; gap: 0.75rem; max-width: 42rem; }
-.repair-detail textarea { width: 100%; min-height: 7rem; padding: 0.75rem; font: inherit; border: 1px solid var(--muted); border-radius: 6px; resize: vertical; }
-.repair-detail button { min-height: 44px; width: fit-content; padding: 0.5rem 1rem; border: 0; border-radius: 6px; font: inherit; color: #fff; background: var(--ink); cursor: pointer; }
-.repair-detail button:disabled { opacity: 0.65; cursor: wait; }
+.work-order-lifecycle li { padding: 1rem; border: 1px solid var(--line); background: var(--paper); }
+.work-order-lifecycle li[aria-current='step'] { border: 2px solid var(--ink); }
+.work-order-lifecycle span, .work-order-lifecycle small { display: block; margin-top: 0.5rem; }
+.work-order-lifecycle li[aria-current='step'] span { font-weight: 700; text-decoration: underline; }
+.work-order-detail__information { display: grid; gap: 1rem; }
+.work-order-detail__information dt { font-weight: 650; }
+.work-order-detail__information dd { margin: 0.35rem 0 0; white-space: pre-wrap; }
+.work-order-detail form { display: grid; gap: 0.75rem; max-width: 42rem; }
+.work-order-detail textarea { width: 100%; min-height: 7rem; padding: 0.75rem; font: inherit; border: 1px solid var(--muted); border-radius: 6px; resize: vertical; }
+.work-order-detail button { min-height: 44px; width: fit-content; padding: 0.5rem 1rem; border: 0; border-radius: 6px; font: inherit; color: #fff; background: var(--ink); cursor: pointer; }
+.work-order-detail button:disabled { opacity: 0.65; cursor: wait; }
 #detail-action-error { color: var(--accent-dark); }
 @media (max-width: 600px) {
-  .repair-lifecycle { grid-template-columns: minmax(0, 1fr); }
+  .work-order-lifecycle { grid-template-columns: minmax(0, 1fr); }
 }
 
-#repair-action-status:empty { margin: 0; }
-#repair-action-status:not(:empty) { padding: 1rem; border: 1px solid var(--completed-text); background: var(--completed-bg); color: var(--completed-text); }
+#work-order-action-status:empty { margin: 0; }
+#work-order-action-status:not(:empty) { padding: 1rem; border: 1px solid var(--completed-text); background: var(--completed-bg); color: var(--completed-text); }
 #complete-confirmation { padding: 1rem; border: 1px solid var(--line); background: var(--paper); }
 #complete-confirmation h3 { margin-top: 0; }
 #complete-confirmation button { margin: 0.25rem; }
@@ -892,10 +892,10 @@ body::before {
 .app-shell__skip { max-width: calc(100% - 1rem); min-height: 44px; }
 .order-form__actions { flex-wrap: wrap; }
 .order-form-panel__header > span { min-width: 0; }
-.repair-lifecycle li { min-width: 0; }
-.repair-detail form { grid-template-columns: minmax(0, 1fr); }
-.repair-card__actions { display: flex; flex-direction: column; align-items: flex-start; gap: 0.25rem; }
-.repair-detail-link { min-height: 44px; }
+.work-order-lifecycle li { min-width: 0; }
+.work-order-detail form { grid-template-columns: minmax(0, 1fr); }
+.work-order-card__actions { display: flex; flex-direction: column; align-items: flex-start; gap: 0.25rem; }
+.work-order-detail-link { min-height: 44px; }
 @media (prefers-reduced-motion: reduce) {
   .app-shell .request-state__spinner { animation: none; }
   .app-shell input, .app-shell textarea, .app-shell select { transition: none; }
@@ -1103,82 +1103,91 @@ body::before {
 }
 
 /* Repairs module shares HITO 03 surfaces, spacing and focus tokens. */
-.repairs-module { min-width: 0; color: var(--ui-text-primary); overflow-wrap: anywhere; }
-.repairs-capabilities { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1.25rem; }
-.repairs-surface { min-width: 0; margin: 0 0 1rem; padding: 1.25rem; background: var(--ui-surface); border: 1px solid var(--ui-border); border-radius: var(--ui-radius); }
-.repairs-module h2 { margin: 0 0 .75rem; font-size: 1.1rem; }
-.repairs-module p { line-height: 1.55; }
-.repairs-capabilities p, .repairs-empty, .repairs-breadcrumb { color: var(--ui-text-secondary); }
-.repairs-capability-icon { display: grid; place-items: center; width: 2.5rem; height: 2.5rem; margin-bottom: 1rem; border-radius: .6rem; color: var(--ui-accent); background: var(--ui-background); font-size: 1.75rem; }
-.repairs-module a { color: var(--ui-accent); text-underline-offset: .2rem; }
-.repairs-module a:focus-visible, .repairs-module button:focus-visible, .repairs-module input:focus-visible, .repairs-module textarea:focus-visible { outline: 2px solid var(--ui-focus); outline-offset: 3px; }
-.repairs-module .repairs-primary-action { display: inline-flex; min-height: 44px; align-items: center; padding: .5rem 1rem; border-radius: .4rem; background: var(--ui-accent); color: white; text-decoration: none; font-weight: 600; }
-.repairs-secondary-action { display: inline-flex; min-height: 44px; align-items: center; padding: .5rem 1rem; }
-.repairs-breadcrumb { display: flex; flex-wrap: wrap; gap: .35rem; align-items: center; margin-bottom: .75rem; font-size: .8rem; }
-.repairs-breadcrumb a { display: inline-flex; align-items: center; min-height: 32px; }
-.repairs-module .order-form-panel { max-width: 54rem; }
-.repairs-module .order-form { display: grid; grid-template-columns: minmax(0, 1fr); }
-.repair-form-group { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; min-width: 0; margin: 0; padding: .75rem 0 1rem; border: 0; border-bottom: 1px solid var(--ui-border); }
-.repair-form-group legend { font-weight: 650; padding: 0; }
-.repairs-module .order-form__actions { display: flex; flex-wrap: wrap; align-items: center; gap: .75rem; }
-.repairs-module .order-form__actions p { flex: 1 1 15rem; font-size: .8rem; }
-#repair-search-form fieldset { border: 0; padding: 0; margin: 1rem 0; min-width: 0; }
-#repair-search-form legend { font-size: .85rem; margin-bottom: .5rem; }
-.repairs-empty { padding: 1.5rem 1rem; text-align: center; }
-.repair-results { width: 100%; table-layout: fixed; border-collapse: collapse; text-align: left; font-size: .8rem; }
-.repair-results th, .repair-results td { padding: .65rem .5rem; border-bottom: 1px solid var(--ui-border); vertical-align: middle; }
-.repair-results thead { color: var(--ui-text-secondary); background: var(--ui-background); }
-.repair-results a { display: inline-flex; align-items: center; min-height: 32px; }
-.repair-results .repair-card__status { font-size: .7rem; }
-.repairs-module #diagnosis-form { display: grid; gap: .75rem; max-width: 42rem; }
-.repairs-module #diagnosis-form button { justify-self: start; }
-.repairs-module .repair-detail__information { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
-.repairs-module .repair-detail__information dt { color: var(--ui-text-secondary); font-size: .8rem; margin-bottom: .25rem; }
-.repairs-module .repair-detail__information dd { margin: 0; white-space: pre-wrap; }
-.repairs-module #complete-confirmation { padding: 1rem; border: 1px solid var(--ui-border); border-radius: .5rem; background: var(--ui-background); }
+.work-orders-module { min-width: 0; color: var(--ui-text-primary); overflow-wrap: anywhere; }
+.work-orders-capabilities { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1.25rem; }
+.work-orders-surface { min-width: 0; margin: 0 0 1rem; padding: 1.25rem; background: var(--ui-surface); border: 1px solid var(--ui-border); border-radius: var(--ui-radius); }
+.work-orders-module h2 { margin: 0 0 .75rem; font-size: 1.1rem; }
+.work-orders-module p { line-height: 1.55; }
+.work-orders-capabilities p, .work-orders-empty, .work-orders-breadcrumb { color: var(--ui-text-secondary); }
+.work-orders-capability-icon { display: grid; place-items: center; width: 2.5rem; height: 2.5rem; margin-bottom: 1rem; border-radius: .6rem; color: var(--ui-accent); background: var(--ui-background); font-size: 1.75rem; }
+.work-orders-module a { color: var(--ui-accent); text-underline-offset: .2rem; }
+.work-orders-module a:focus-visible, .work-orders-module button:focus-visible, .work-orders-module input:focus-visible, .work-orders-module textarea:focus-visible { outline: 2px solid var(--ui-focus); outline-offset: 3px; }
+.work-orders-module .work-orders-primary-action { display: inline-flex; min-height: 44px; align-items: center; padding: .5rem 1rem; border-radius: .4rem; background: var(--ui-accent); color: white; text-decoration: none; font-weight: 600; }
+.work-orders-secondary-action { display: inline-flex; min-height: 44px; align-items: center; padding: .5rem 1rem; }
+.work-orders-breadcrumb { display: flex; flex-wrap: wrap; gap: .35rem; align-items: center; margin-bottom: .75rem; font-size: .8rem; }
+.work-orders-breadcrumb a { display: inline-flex; align-items: center; min-height: 32px; }
+.work-orders-module .order-form-panel { max-width: 54rem; }
+.work-orders-module .order-form { display: grid; grid-template-columns: minmax(0, 1fr); }
+.work-order-form-group { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; min-width: 0; margin: 0; padding: .75rem 0 1rem; border: 0; border-bottom: 1px solid var(--ui-border); }
+.work-order-form-group legend { font-weight: 650; padding: 0; }
+.work-orders-module .order-form__actions { display: flex; flex-wrap: wrap; align-items: center; gap: .75rem; }
+.work-orders-module .order-form__actions p { flex: 1 1 15rem; font-size: .8rem; }
+#work-order-search-form fieldset { border: 0; padding: 0; margin: 1rem 0; min-width: 0; }
+#work-order-search-form legend { font-size: .85rem; margin-bottom: .5rem; }
+.work-orders-empty { padding: 1.5rem 1rem; text-align: center; }
+.work-order-results { width: 100%; table-layout: fixed; border-collapse: collapse; text-align: left; font-size: .8rem; }
+.work-order-results th, .work-order-results td { padding: .65rem .5rem; border-bottom: 1px solid var(--ui-border); vertical-align: middle; }
+.work-order-results thead { color: var(--ui-text-secondary); background: var(--ui-background); }
+.work-order-results a { display: inline-flex; align-items: center; min-height: 32px; }
+.work-order-results .work-order-card__status { font-size: .7rem; }
+.work-orders-module #diagnosis-form { display: grid; gap: .75rem; max-width: 42rem; }
+.work-orders-module #diagnosis-form button { justify-self: start; }
+.work-orders-module .work-order-detail__information { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
+.work-orders-module .work-order-detail__information dt { color: var(--ui-text-secondary); font-size: .8rem; margin-bottom: .25rem; }
+.work-orders-module .work-order-detail__information dd { margin: 0; white-space: pre-wrap; }
+.work-orders-module #complete-confirmation { padding: 1rem; border: 1px solid var(--ui-border); border-radius: .5rem; background: var(--ui-background); }
 @media (max-width: 900px) {
-  .repair-results, .repair-results tbody { display: block; }
-  .repair-results thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
-  .repair-results tr { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); border-bottom: 1px solid var(--ui-border); padding: .5rem 0; }
-  .repair-results tbody th, .repair-results td { display: block; min-width: 0; border: 0; }
-  .repair-results [data-label]::before { content: attr(data-label); display: block; font-size: .7rem; font-weight: 400; color: var(--ui-text-secondary); margin-bottom: .25rem; }
+  .work-order-results, .work-order-results tbody { display: block; }
+  .work-order-results thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+  .work-order-results tr { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); border-bottom: 1px solid var(--ui-border); padding: .5rem 0; }
+  .work-order-results tbody th, .work-order-results td { display: block; min-width: 0; border: 0; }
+  .work-order-results [data-label]::before { content: attr(data-label); display: block; font-size: .7rem; font-weight: 400; color: var(--ui-text-secondary); margin-bottom: .25rem; }
 }
 @media (max-width: 600px) {
-  .repairs-capabilities, .repair-form-group, .repairs-module .repair-detail__information { grid-template-columns: minmax(0, 1fr); }
-  .repairs-surface { padding: 1rem; }
-  .repairs-module .repair-filters { display: grid; grid-template-columns: minmax(0, 1fr); }
-  .repairs-module .order-form__actions { align-items: stretch; flex-direction: column; }
-  .repairs-module .order-form__actions p { flex: auto; }
+  .work-orders-capabilities, .work-order-form-group, .work-orders-module .work-order-detail__information { grid-template-columns: minmax(0, 1fr); }
+  .work-orders-surface { padding: 1rem; }
+  .work-orders-module .work-order-filters { display: grid; grid-template-columns: minmax(0, 1fr); }
+  .work-orders-module .order-form__actions { align-items: stretch; flex-direction: column; }
+  .work-orders-module .order-form__actions p { flex: auto; }
 }
 /* Override the HITO 02 form/action palette only inside Repairs. */
-.repairs-module button:not(.filter-button) { min-height: 44px; padding: .6rem 1rem; border: 1px solid var(--ui-accent); border-radius: .4rem; color: white; background: var(--ui-accent); font: inherit; font-weight: 600; box-shadow: none; cursor: pointer; }
-.repairs-module button:not(.filter-button):hover { background: var(--ui-navy); border-color: var(--ui-navy); }
-.repairs-module button:disabled { opacity: .65; cursor: wait; }
-.repairs-module .filter-button { color: var(--ui-text-primary); border-color: var(--ui-border); background: var(--ui-surface); }
-.repairs-module .filter-button[aria-pressed='true'] { color: var(--ui-accent); border-color: var(--ui-accent); background: var(--ui-background); }
-.repairs-module .form-field label { color: var(--ui-text-primary); }
-.repairs-module .form-field input, .repairs-module .form-field textarea, .repairs-module #repair-diagnosis { border: 1px solid var(--ui-border); border-radius: .4rem; color: var(--ui-text-primary); background: var(--ui-surface); font: inherit; }
-.repairs-module .form-field input:focus, .repairs-module .form-field textarea:focus { border-color: var(--ui-focus); box-shadow: none; }
-.repairs-module .form-field [aria-invalid='true'] { border-color: #a23529; }
-.repairs-module .order-form__actions p { color: var(--ui-text-secondary); }
-.repairs-module .order-form__actions .form-submit-status--error { color: #a23529; }
-.repairs-module .repair-lifecycle li { background: var(--ui-background); border-color: var(--ui-border); border-radius: .4rem; }
-.repairs-module .repair-lifecycle li[aria-current='step'] { border-color: var(--ui-accent); }
-.repairs-module #cancel-complete { background: var(--ui-surface); color: var(--ui-accent); }
+.work-orders-module button:not(.filter-button) { min-height: 44px; padding: .6rem 1rem; border: 1px solid var(--ui-accent); border-radius: .4rem; color: white; background: var(--ui-accent); font: inherit; font-weight: 600; box-shadow: none; cursor: pointer; }
+.work-orders-module button:not(.filter-button):hover { background: var(--ui-navy); border-color: var(--ui-navy); }
+.work-orders-module button:disabled { opacity: .65; cursor: wait; }
+.work-orders-module .filter-button { color: var(--ui-text-primary); border-color: var(--ui-border); background: var(--ui-surface); }
+.work-orders-module .filter-button[aria-pressed='true'] { color: var(--ui-accent); border-color: var(--ui-accent); background: var(--ui-background); }
+.work-orders-module .form-field label { color: var(--ui-text-primary); }
+.work-orders-module .form-field input, .work-orders-module .form-field textarea, .work-orders-module #work-order-diagnosis { border: 1px solid var(--ui-border); border-radius: .4rem; color: var(--ui-text-primary); background: var(--ui-surface); font: inherit; }
+.work-orders-module .form-field input:focus, .work-orders-module .form-field textarea:focus { border-color: var(--ui-focus); box-shadow: none; }
+.work-orders-module .form-field [aria-invalid='true'] { border-color: #a23529; }
+.work-orders-module .order-form__actions p { color: var(--ui-text-secondary); }
+.work-orders-module .order-form__actions .form-submit-status--error { color: #a23529; }
+.work-orders-module .work-order-lifecycle li { background: var(--ui-background); border-color: var(--ui-border); border-radius: .4rem; }
+.work-orders-module .work-order-lifecycle li[aria-current='step'] { border-color: var(--ui-accent); }
+.work-orders-module #cancel-complete { background: var(--ui-surface); color: var(--ui-accent); }
 
 /* Intake: fixed Chilean mobile prefix and native service selection. */
-.repair-phone-control { display: flex; align-items: stretch; min-width: 0; }
-.repair-phone-prefix { display: inline-flex; flex: 0 0 auto; white-space: nowrap; align-items: center; padding: 0 .8rem; border: 1px solid var(--ui-border); border-right: 0; border-radius: .4rem 0 0 .4rem; color: var(--ui-text-primary); background: var(--ui-background); font-weight: 600; }
-.repairs-module .repair-phone-control input { min-width: 0; width: 100%; border-radius: 0 .4rem .4rem 0; }
-.repair-field-help { display: block; margin-top: .35rem; color: var(--ui-text-secondary); font-size: .75rem; line-height: 1.4; }
-.repair-service-selector { min-width: 0; margin: 0; padding: .5rem 0; border: 0; }
-.repair-service-selector legend { color: var(--ui-text-primary); font-weight: 600; }
-.repair-service-options { display: flex; flex-wrap: wrap; gap: .75rem; margin-top: .65rem; }
-.repair-service-options label { display: flex; align-items: center; gap: .6rem; min-height: 44px; padding: .6rem 1rem; border: 1px solid var(--ui-border); border-radius: .4rem; cursor: pointer; color: var(--ui-text-primary); background: var(--ui-surface); }
-.repair-service-options label:has(input:checked) { border-color: var(--ui-accent); background: var(--ui-background); font-weight: 650; }
-.repair-service-options input { width: 1rem; height: 1rem; flex: none; margin: 0; accent-color: var(--ui-accent); }
-.repair-service-selector small { display: block; margin-top: .35rem; font-size: .75rem; color: #a23529; }
-.repair-service-type { display: block; margin-top: .3rem; font-size: .75rem; font-weight: 400; color: var(--ui-text-secondary); }
+.work-order-phone-control { display: flex; align-items: stretch; min-width: 0; }
+.work-order-phone-prefix { display: inline-flex; flex: 0 0 auto; white-space: nowrap; align-items: center; padding: 0 .8rem; border: 1px solid var(--ui-border); border-right: 0; border-radius: .4rem 0 0 .4rem; color: var(--ui-text-primary); background: var(--ui-background); font-weight: 600; }
+.work-orders-module .work-order-phone-control input { min-width: 0; width: 100%; border-radius: 0 .4rem .4rem 0; }
+.work-order-field-help { display: block; margin-top: .35rem; color: var(--ui-text-secondary); font-size: .75rem; line-height: 1.4; }
+.work-order-service-selector { min-width: 0; margin: 0; padding: .5rem 0; border: 0; }
+.work-order-service-selector legend { color: var(--ui-text-primary); font-weight: 600; }
+.work-order-service-options { display: flex; flex-wrap: wrap; gap: .75rem; margin-top: .65rem; }
+.work-order-service-options label { display: flex; align-items: center; gap: .6rem; min-height: 44px; padding: .6rem 1rem; border: 1px solid var(--ui-border); border-radius: .4rem; cursor: pointer; color: var(--ui-text-primary); background: var(--ui-surface); }
+.work-order-service-options label:has(input:checked) { border-color: var(--ui-accent); background: var(--ui-background); font-weight: 650; }
+.work-order-service-options input { width: 1rem; height: 1rem; flex: none; margin: 0; accent-color: var(--ui-accent); }
+.work-order-service-selector small { display: block; margin-top: .35rem; font-size: .75rem; color: #a23529; }
+.work-order-service-type { display: block; margin-top: .3rem; font-size: .75rem; font-weight: 400; color: var(--ui-text-secondary); }
 @media (max-width: 430px) {
-  .repair-service-options { flex-direction: column; }
+  .work-order-service-options { flex-direction: column; }
 }
+
+/* Work Order operational states share the established workshop palette. */
+
+.dashboard-tone--diagnosis, .dashboard-tone--waiting-customer, .dashboard-tone--waiting-parts { color: var(--work-order-text); stroke: currentColor; }
+.dashboard-tone--not-approved { color: var(--muted); stroke: currentColor; }
+.work-order-card__status--diagnosis, .work-order-card__status--waiting-customer,
+.work-order-card__status--waiting-parts { color: var(--work-order-text); background: var(--work-order-bg); }
+.work-order-card__status--not-approved { color: var(--muted); background: var(--paper); }
+.legacy-lifecycle { padding: 1rem; border-left: 3px solid var(--accent); }

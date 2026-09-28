@@ -2,8 +2,8 @@ export function generateTopbarHtml(): string {
   return `<header class="app-topbar" lang="es">
     <button id="sidebar-toggle" type="button" aria-controls="app-sidebar" aria-expanded="true" aria-label="Contraer panel lateral"><span aria-hidden="true">☰</span></button>
     <div class="app-topbar__search">
-      <label for="global-search">Buscar reparaciones, clientes, repuestos...</label>
-      <input id="global-search" type="search" placeholder="Buscar reparaciones, clientes, repuestos..." disabled aria-describedby="search-availability" />
+      <label for="global-search">Buscar órdenes de trabajo, clientes, repuestos...</label>
+      <input id="global-search" type="search" placeholder="Buscar órdenes de trabajo, clientes, repuestos..." disabled aria-describedby="search-availability" />
       <span id="search-availability">Próximamente · <kbd>Ctrl+K</kbd></span>
     </div>
     <button type="button" disabled aria-label="Notificaciones — próximamente" title="Notificaciones — próximamente">

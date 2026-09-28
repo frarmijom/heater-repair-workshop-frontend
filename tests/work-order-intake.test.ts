@@ -1,15 +1,15 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { ServiceType, RepairStatus, type RepairOrder } from '../src/models/index.ts'
-import { generateRepairOrderFormHtml, setupRepairOrderForm } from '../src/components/repair-order-form.ts'
+import { ServiceType, WorkOrderStatus, type WorkOrder } from '../src/models/index.ts'
+import { generateWorkOrderFormHtml, setupWorkOrderForm } from '../src/components/work-order-form.ts'
 import { serviceTypePresentation } from '../src/components/service-type-presentation.ts'
-import { generateRepairResultsHtml } from '../src/components/repair-results.ts'
-import { generateRepairDetailHtml } from '../src/components/repair-detail.ts'
-import { generateRepairOrderCardHtml } from '../src/components/repair-order-card.ts'
+import { generateWorkOrderResultsHtml } from '../src/components/work-order-results.ts'
+import { generateWorkOrderDetailHtml } from '../src/components/work-order-detail.ts'
+import { generateWorkOrderCardHtml } from '../src/components/work-order-card.ts'
 import { summarizeDashboard, weeklyReceptions } from '../src/dashboard/dashboard-data.ts'
 
 const base = { customerName: 'Juan Pérez', customerContact: '+56912345678', heaterBrand: 'Junkers', heaterModel: 'WR11', serviceType: ServiceType.REPAIR, reportedIssue: 'No enciende' }
-const order: RepairOrder = { ...base, id: 'order-1', status: RepairStatus.RECEIVED, diagnosis: null, receivedAt: '2026-09-26T12:00:00Z', completedAt: null }
+const order: WorkOrder = { ...base, id: 'order-1', status: WorkOrderStatus.RECEIVED, diagnosis: null, receivedAt: '2026-09-26T12:00:00Z', completedAt: null }
 let create: ReturnType<typeof vi.fn>
 const phone = () => document.querySelector<HTMLInputElement>('#customer-phone')!
 const issue = () => document.querySelector<HTMLTextAreaElement>('#reported-issue')!
@@ -22,9 +22,9 @@ function fill() {
   }
 }
 beforeEach(() => {
-  document.body.innerHTML = generateRepairOrderFormHtml()
+  document.body.innerHTML = generateWorkOrderFormHtml()
   create = vi.fn().mockResolvedValue(undefined)
-  setupRepairOrderForm(document.body, create)
+  setupWorkOrderForm(document.body, create)
   fill()
 })
 
@@ -143,20 +143,20 @@ describe('shared service presentation and unchanged lifecycle', () => {
   it.each(Object.values(ServiceType))('presents %s consistently in results, detail and cards', serviceType => {
     const current = { ...order, serviceType }
     const presentation = serviceTypePresentation[serviceType]
-    const table = render(generateRepairResultsHtml([current]))
-    expect(table.querySelector('.repair-service-type')?.textContent).toBe(presentation.label)
+    const table = render(generateWorkOrderResultsHtml([current]))
+    expect(table.querySelector('.work-order-service-type')?.textContent).toBe(presentation.label)
     expect(table.querySelectorAll('thead th')).toHaveLength(6)
-    const detail = render(generateRepairDetailHtml(current))
-    const fields = Object.fromEntries([...detail.querySelectorAll('.repair-detail__information > div')].map(row => [row.querySelector('dt')!.textContent, row.querySelector('dd')!.textContent]))
+    const detail = render(generateWorkOrderDetailHtml(current))
+    const fields = Object.fromEntries([...detail.querySelectorAll('.work-order-detail__information > div')].map(row => [row.querySelector('dt')!.textContent, row.querySelector('dd')!.textContent]))
     expect(fields['Tipo de servicio']).toBe(presentation.label)
     expect(fields[presentation.issueLabel]).toBe(order.reportedIssue)
-    const card = render(generateRepairOrderCardHtml(current))
-    expect(card.querySelector('.repair-card__service')?.textContent).toBe(`Tipo de servicio: ${presentation.label}`)
-    expect(card.querySelector('.repair-card__issue strong')?.textContent).toBe(`${presentation.issueLabel}:`)
+    const card = render(generateWorkOrderCardHtml(current))
+    expect(card.querySelector('.work-order-card__service')?.textContent).toBe(`Tipo de servicio: ${presentation.label}`)
+    expect(card.querySelector('.work-order-card__issue strong')?.textContent).toBe(`${presentation.issueLabel}:`)
     for (const root of [table, detail, card]) expect(root.textContent).not.toMatch(/REPAIR|MAINTENANCE/)
   })
   it('shows a dash for maintenance without observations and safely escapes observations', () => {
-    for (const generate of [generateRepairDetailHtml, generateRepairOrderCardHtml]) {
+    for (const generate of [generateWorkOrderDetailHtml, generateWorkOrderCardHtml]) {
       const root = render(generate({ ...order, serviceType: ServiceType.MAINTENANCE, reportedIssue: '' }))
       expect(root.textContent).toMatch(/Observaciones[:\s]*—/)
       expect(root.textContent).not.toContain('Problema reportado')
@@ -165,16 +165,18 @@ describe('shared service presentation and unchanged lifecycle', () => {
       expect(escaped.textContent).toContain('<img src=x onerror=alert(1)>')
     }
   })
-  it.each(Object.values(RepairStatus))('uses the same %s lifecycle and actions for both service types', status => {
-    const repair = render(generateRepairDetailHtml({ ...order, status }))
-    const maintenance = render(generateRepairDetailHtml({ ...order, status, serviceType: ServiceType.MAINTENANCE }))
-    expect(maintenance.querySelector('.repair-lifecycle')?.innerHTML).toBe(repair.querySelector('.repair-lifecycle')?.innerHTML)
-    expect(maintenance.querySelector('#detail-actions')?.innerHTML).toBe(repair.querySelector('#detail-actions')?.innerHTML)
+  it('offers diagnosis only for repair and direct work only for maintenance at reception', () => {
+    const repair = render(generateWorkOrderDetailHtml(order))
+    const maintenance = render(generateWorkOrderDetailHtml({ ...order, serviceType: ServiceType.MAINTENANCE }))
+    expect(repair.querySelector('[data-work-order-action="diagnosis/begin"]')).not.toBeNull()
+    expect(repair.querySelector('[data-work-order-action="start"]')).toBeNull()
+    expect(maintenance.querySelector('[data-work-order-action="start"]')).not.toBeNull()
+    expect(maintenance.querySelector('textarea')).toBeNull()
   })
   it('keeps mixed service orders in the same Dashboard status counts and weekly totals', () => {
     const now = new Date('2026-09-27T18:00:00Z').getTime()
     const mixed = [order, { ...order, id: 'maintenance', serviceType: ServiceType.MAINTENANCE, reportedIssue: '' }]
-    expect(summarizeDashboard(mixed, now).counts).toEqual({ RECEIVED: 2, IN_PROGRESS: 0, COMPLETED: 0 })
+    expect(summarizeDashboard(mixed, now).counts).toEqual({ RECEIVED: 2, DIAGNOSIS: 0, WAITING_CUSTOMER: 0, WAITING_PARTS: 0, IN_PROGRESS: 0, COMPLETED: 0, NOT_APPROVED: 0 })
     expect(summarizeDashboard(mixed, now).attention).toHaveLength(2)
     expect(weeklyReceptions(mixed, now).reduce((sum, week) => sum + week.count, 0)).toBe(2)
   })
