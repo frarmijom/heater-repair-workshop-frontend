@@ -13,13 +13,14 @@ export function createCatalogModule(root: HTMLElement) {
   let confirmation: CatalogEntry | undefined
   let message = ''
   const valid = (value: number) => !disposed && value === generation && root.isConnected
+    && (!window.location.hash || window.location.hash === `#inventory/${kind}`)
   const errorText = (error: unknown) => error instanceof ApiRequestError && error.status === 409
     ? `Conflicto: ${error.message}` : error instanceof Error ? error.message : 'No se pudo completar la solicitud.'
   function render(loading = false, error = '') {
     const units = kind === 'units'
     const title = units ? 'Unidades de medida' : 'Categorías'
     root.innerHTML = `<header class="app-shell__page-header"><div><h1 id="inventory-title" tabindex="-1">Inventario</h1><p>Administración de categorías y unidades de medida</p></div></header>
-      <nav class="catalog-tabs" aria-label="Catálogos de inventario"><a href="#inventory/categories" ${!units ? 'aria-current="page"' : ''}>Categorías</a><a href="#inventory/units" ${units ? 'aria-current="page"' : ''}>Unidades de medida</a></nav>
+      <nav class="catalog-tabs" aria-label="Inventario"><a href="#inventory/items">Artículos</a><a href="#inventory/categories" ${!units ? 'aria-current="page"' : ''}>Categorías</a><a href="#inventory/units" ${units ? 'aria-current="page"' : ''}>Unidades de medida</a></nav>
       <p id="catalog-status" role="status">${escapeHtml(message)}</p>
       <section class="work-orders-surface" aria-labelledby="catalog-list-title"><div class="catalog-heading"><h2 id="catalog-list-title">${title}</h2><button id="catalog-reload" type="button" ${saving || loadingCatalog ? 'disabled' : ''}>Actualizar listado</button></div>
       ${loading ? '<p role="status">Cargando catálogo…</p>' : error ? `<p role="alert">${escapeHtml(error)}</p><button id="catalog-retry" type="button">Reintentar</button>` : entries.length === 0 ? '<p>No hay registros en este catálogo.</p>' : `<table class="catalog-table"><caption class="dashboard-sr-only">${title}</caption><thead><tr><th scope="col">Nombre</th>${units ? '<th scope="col">Símbolo</th><th scope="col">Decimales</th>' : ''}<th scope="col">Estado</th><th scope="col">Acciones</th></tr></thead><tbody>${entries.map(entry => `<tr><th scope="row" data-label="Nombre">${escapeHtml(entry.name)}</th>${units ? `<td data-label="Símbolo">${escapeHtml(entry.symbol ?? '')}</td><td data-label="Decimales">${entry.allowsDecimal ? 'Permitidos' : 'No permitidos'}</td>` : ''}<td data-label="Estado"><span class="catalog-state">${entry.active ? 'ACTIVO' : 'INACTIVO'}</span></td><td data-label="Acciones"><div class="catalog-row-actions"><button type="button" data-edit="${escapeHtml(entry.id)}" aria-label="Editar ${escapeHtml(entry.name)}" ${saving || loadingCatalog ? 'disabled' : ''}>Editar</button><button type="button" data-toggle="${escapeHtml(entry.id)}" aria-label="${entry.active ? 'Desactivar' : 'Activar'} ${escapeHtml(entry.name)}" ${saving || loadingCatalog ? 'disabled' : ''}>${entry.active ? 'Desactivar' : 'Activar'}</button></div></td></tr>`).join('')}</tbody></table>`}

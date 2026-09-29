@@ -1236,10 +1236,47 @@ body::before {
 .catalog-module small, .catalog-module [role="alert"] { color: #a23529; }
 .catalog-module [role="status"]:empty { margin: 0; }
 .catalog-module button, .catalog-tabs a { overflow-wrap: anywhere; max-width: 100%; }
+.inventory-items-surface { min-width: 0; }
+.inventory-items-table-wrap { max-width: 100%; overflow-x: auto; }
+.inventory-items-table { width: 100%; min-width: 880px; table-layout: fixed; border-collapse: collapse; text-align: left; }
+.inventory-items-table th, .inventory-items-table td { padding: .7rem .55rem; border-bottom: 1px solid var(--ui-border); overflow-wrap: anywhere; vertical-align: top; }
+.inventory-items-table thead { background: var(--ui-background); }
+.inventory-items-table th:nth-child(1) { width: 9%; }
+.inventory-items-table th:nth-child(2) { width: 16%; }
+.inventory-items-table th:nth-child(3), .inventory-items-table th:nth-child(4) { width: 12%; }
+.inventory-items-table th:nth-child(5), .inventory-items-table th:nth-child(6) { width: 10%; }
+.inventory-items-table th:nth-child(7) { width: 12%; }
+.inventory-items-table th:nth-child(8) { width: 8%; }
+.inventory-items-table th:nth-child(9) { width: 15%; }
+.inventory-item-filters { display: grid; grid-template-columns: minmax(12rem, 2fr) repeat(2, minmax(9rem, 1fr)) auto; align-items: end; gap: .85rem; margin-bottom: 1rem; }
+.inventory-item-filters .form-field { min-width: 0; }
+.inventory-item-filters :is(input, select) { width: 100%; min-height: 44px; }
+.inventory-low-filter { display: inline-flex; align-items: center; gap: .5rem; min-height: 44px; }
+.inventory-low-filter input { width: 1.2rem; height: 1.2rem; }
+.inventory-low-stock { display: block; width: fit-content; margin-top: .3rem; padding: .18rem .4rem; color: #7c2d12; background: #fff1e8; border: 1px solid #e8a87c; font-size: .75rem; font-weight: 650; }
+.inventory-empty { padding: 1.25rem 0; }
+.inventory-item-form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
+.inventory-item-form-grid .form-field { min-width: 0; }
+.inventory-item-form-grid :is(input, select, textarea) { width: 100%; min-height: 44px; }
+.inventory-item-form-grid textarea { resize: vertical; }
+.inventory-item-form-surface { margin-top: 1rem; }
+.inventory-readonly-label { display: block; color: var(--ui-text-secondary); }
+.inventory-readonly-value { display: block; padding: .6rem 0; font-weight: 650; }
+.inventory-item-form-surface [role="alert"], .inventory-item-form-surface small { color: #a23529; }
 @media (max-width: 900px) {
   .catalog-table, .catalog-table tbody { display: block; }
   .catalog-table thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
   .catalog-table tr { display: grid; grid-template-columns: minmax(0, 1fr); border-bottom: 1px solid var(--ui-border); }
   .catalog-table th, .catalog-table td { display: block; border: 0; padding: .5rem 0; min-width: 0; }
   .catalog-table [data-label]::before { content: attr(data-label); display: block; color: var(--ui-text-secondary); font-size: .75rem; font-weight: 400; margin-bottom: .25rem; }
+  .inventory-item-filters { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .inventory-items-table, .inventory-items-table tbody { display: block; min-width: 0; }
+  .inventory-items-table thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+  .inventory-items-table tr { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .25rem 1rem; padding: .6rem 0; border-bottom: 1px solid var(--ui-border); }
+  .inventory-items-table th, .inventory-items-table td { display: block; width: auto !important; min-width: 0; padding: .35rem 0; border: 0; }
+  .inventory-items-table [data-label]::before { content: attr(data-label); display: block; color: var(--ui-text-secondary); font-size: .75rem; margin-bottom: .15rem; }
+}
+@media (max-width: 520px) {
+  .inventory-item-filters, .inventory-item-form-grid { grid-template-columns: minmax(0, 1fr); }
+  .inventory-items-table tr { grid-template-columns: minmax(0, 1fr); }
 }

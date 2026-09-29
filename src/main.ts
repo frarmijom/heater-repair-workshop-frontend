@@ -1,4 +1,5 @@
 import { createCatalogModule } from './inventory/catalog-module.ts'
+import { createInventoryItemModule } from './inventory/item-module.ts'
 import { workOrderActions, type WorkOrderAction } from './components/work-order-actions.ts'
 import './style.css'
 import { generatePageHeaderHtml } from './components/page-header.ts'
@@ -40,6 +41,7 @@ let renderedDetailOrder: WorkOrder | undefined
 const pendingWorkOrderActions = new Set<string>()
 let authenticated = false
 let inventoryModule: ReturnType<typeof createCatalogModule> | undefined
+let inventoryItemModule: ReturnType<typeof createInventoryItemModule> | undefined
 let viewGeneration = 0
 let clockIntervalId: number | undefined
 const sidebarState = { compact: false }
@@ -302,7 +304,9 @@ function renderWorkshop(): void {
     <section class="work-order-detail work-orders-module" lang="es" data-destination="work-order-detail" aria-labelledby="work-order-detail-title" hidden></section>
   `)
   inventoryModule?.dispose()
+  inventoryItemModule?.dispose()
   inventoryModule = createCatalogModule(appContainer.querySelector<HTMLElement>('[data-destination="inventory"]')!)
+  inventoryItemModule = createInventoryItemModule(appContainer.querySelector<HTMLElement>('[data-destination="inventory"]')!)
   startClock()
   setupWorkOrderForm(appContainer, addWorkOrder)
   setupRepairSearch()
@@ -312,7 +316,10 @@ function renderWorkshop(): void {
 async function loadDestination(focusHeading = false): Promise<void> {
   const destination = selectedDestination()
   if (destination === 'inventory') {
-    const loading = inventoryModule?.show(window.location.hash === '#inventory/units' ? 'units' : 'categories')
+    const hash = window.location.hash
+    const loading = hash === '#inventory/categories' || hash === '#inventory/units'
+      ? inventoryModule?.show(hash === '#inventory/units' ? 'units' : 'categories')
+      : inventoryItemModule?.show()
     updateShellDestination(appContainer, focusHeading)
     await loading
     if (authenticated && selectedDestination() === 'inventory') updateShellDestination(appContainer, focusHeading)
@@ -494,6 +501,8 @@ function updateWorkOrderDetail(): void {
 function showLogin(message = ''): void {
   inventoryModule?.dispose()
   inventoryModule = undefined
+  inventoryItemModule?.dispose()
+  inventoryItemModule = undefined
   disposeSidebar?.()
   disposeSidebar = undefined
   sidebarState.compact = false
