@@ -270,11 +270,16 @@ export function createInventoryItemModule(root: HTMLElement) {
       const saved = target ? await editItem(target.id, payload) : await createItem(payload)
       if (!valid(current)) return
       items = target ? items.map(item => item.id === saved.id ? saved : item) : [...items, saved]
-      if (toggle && !saved.active && operating?.id === saved.id && operationMode === 'receipt') {
-        operating = undefined
-        operationMode = undefined
-        receiptRequestId = ''
-        movementHistory = []
+      if (toggle && target) {
+        items = await listItems()
+        if (!valid(current)) return
+        const refreshed = items.find(item => item.id === target.id)
+        if (refreshed && !refreshed.active && operating?.id === refreshed.id && operationMode === 'receipt') {
+          operating = undefined
+          operationMode = undefined
+          receiptRequestId = ''
+          movementHistory = []
+        }
       }
       editing = undefined
       formOpen = false
