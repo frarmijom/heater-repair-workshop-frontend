@@ -1,10 +1,11 @@
 // @vitest-environment jsdom
+import { ServiceType } from '../src/models/index.ts'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status })
 const order = {
   id: 'order-1', customerName: 'Test Customer', customerContact: '+56911112222',
-  heaterBrand: 'Bosch', heaterModel: 'Therm', reportedIssue: 'Turns off',
+  heaterBrand: 'Bosch', heaterModel: 'Therm', serviceType: ServiceType.REPAIR, reportedIssue: 'Turns off',
   status: 'RECEIVED', receivedAt: '2026-09-26T12:00:00Z', diagnosis: null, completedAt: null,
 }
 let fetchMock: ReturnType<typeof vi.fn>
@@ -20,8 +21,8 @@ beforeEach(() => {
     if (url === '/api/auth/session') return json({ email: 'tech@example.test' })
     if (url === '/api/auth/csrf') return json({ headerName: 'X-CSRF-TOKEN', token: 'test-token' })
     if (url === '/api/auth/logout') return new Response(null, { status: 204 })
-    if (url === '/api/repair-orders' && init.method === 'POST') return json({ ...order, ...JSON.parse(init.body as string), id: 'order-2' })
-    if (url === '/api/repair-orders') return json([order])
+    if (url === '/api/work-orders' && init.method === 'POST') return json({ ...order, ...JSON.parse(init.body as string), id: 'order-2' })
+    if (url === '/api/work-orders') return json([order])
     if (url.endsWith('/start')) return json({ ...order, status: 'IN_PROGRESS', diagnosis: 'Replace valve' })
     if (url.endsWith('/complete')) return json({ ...order, status: 'COMPLETED', diagnosis: 'Replace valve', completedAt: '2026-09-26T13:00:00Z' })
     throw new Error(`Unexpected URL: ${url}`)
@@ -39,7 +40,10 @@ afterEach(() => {
 async function startup(hash = '') {
   window.history.replaceState(null, '', '/' + hash)
   await import('../src/main.ts')
-  await vi.waitFor(() => expect(document.querySelector('#workload-title')).not.toBeNull())
+  await vi.waitFor(() => expect(document.querySelector('#work-order-new-title')).not.toBeNull())
+  if (!['#work-orders', '#work-orders/new', '#work-orders/search'].includes(hash)) {
+    await vi.waitFor(() => expect(document.querySelector('#workload-title')).not.toBeNull())
+  }
 }
 const panel = (name: string) => document.querySelector<HTMLElement>(`[data-destination="${name}"]`)!
 const active = () => document.querySelector('.app-shell__nav [aria-current="page"]')?.textContent
@@ -48,16 +52,27 @@ async function navigate(name: string) {
   await vi.waitFor(() => expect(panel(name).hidden).toBe(false))
 }
 
+async function route(hash: string, destination: string) {
+  location.hash = hash
+  await vi.waitFor(() => expect(panel(destination).hidden).toBe(false))
+}
+async function search(filter = 'all') {
+  await route('#work-orders/search', 'work-order-search')
+  document.querySelector<HTMLButtonElement>(`[data-work-order-status="${filter}"]`)!.click()
+  document.querySelector('#work-order-search-form')!.dispatchEvent(new Event('submit', { cancelable: true }))
+  await vi.waitFor(() => expect(document.querySelector('#work-order-results-title')).not.toBeNull())
+}
+
 describe('authenticated application shell', () => {
   it('defaults to Dashboard with semantic navigation, overview and session control', async () => {
     await startup()
     expect(location.hash).toBe('#dashboard')
     expect(active()).toBe('Dashboard')
     expect(document.querySelectorAll('main')).toHaveLength(1)
-    expect(document.querySelector('nav[aria-label="Application"]')?.textContent).toContain('Reparaciones')
+    expect(document.querySelector('nav[aria-label="Application"]')?.textContent).toContain('Órdenes de trabajo')
     expect(panel('dashboard').hidden).toBe(false)
     expect(panel('dashboard').querySelector('#workload-title')).not.toBeNull()
-    expect(panel('repairs').hidden).toBe(true)
+    expect(panel('work-orders').hidden).toBe(true)
     expect(document.querySelector('.app-sidebar #logout')?.textContent).toBe('Cerrar sesión')
     expect(document.querySelector('.hero-scene')).toBeNull()
     expect(panel('dashboard').querySelectorAll('h1')).toHaveLength(1)
@@ -68,35 +83,35 @@ describe('authenticated application shell', () => {
   it('opens a repair from dashboard attention using the existing route and focus handling', async () => {
     await startup()
     const link = panel('dashboard').querySelector<HTMLAnchorElement>('.dashboard-attention a')!
-    expect(link.getAttribute('href')).toBe('#repairs/order-1')
+    expect(link.getAttribute('href')).toBe('#work-orders/order-1')
     link.click()
-    await vi.waitFor(() => expect(panel('repair-detail').hidden).toBe(false))
-    expect(location.hash).toBe('#repairs/order-1')
-    expect(document.activeElement?.id).toBe('repair-detail-title')
-    expect(active()).toBe('Reparaciones')
+    await vi.waitFor(() => expect(panel('work-order-detail').hidden).toBe(false))
+    expect(location.hash).toBe('#work-orders/order-1')
+    expect(document.activeElement?.id).toBe('work-order-detail-title')
+    expect(active()).toBe('Órdenes de trabajo')
   })
 
   it('opens all repairs from the dashboard using a focusable native link and existing routing', async () => {
     await startup()
-    const link = panel('dashboard').querySelector<HTMLAnchorElement>('a[href="#repairs"]')!
-    expect(link.textContent).toBe('Ver todas las reparaciones →')
+    const link = panel('dashboard').querySelector<HTMLAnchorElement>('a[href="#work-orders"]')!
+    expect(link.textContent).toBe('Ver todas las órdenes de trabajo →')
     expect(link.tabIndex).toBe(0)
     link.focus()
     expect(document.activeElement).toBe(link)
     link.click()
-    await vi.waitFor(() => expect(panel('repairs').hidden).toBe(false))
-    expect(location.hash).toBe('#repairs')
-    expect(document.activeElement?.id).toBe('repairs-title')
-    expect(active()).toBe('Reparaciones')
+    await vi.waitFor(() => expect(panel('work-orders').hidden).toBe(false))
+    expect(location.hash).toBe('#work-orders')
+    expect(document.activeElement?.id).toBe('work-orders-title')
+    expect(active()).toBe('Órdenes de trabajo')
   })
 
   it('groups future modules without introducing routes or focusable disabled controls', async () => {
     await startup()
     const sidebar = document.querySelector('.app-sidebar')!
     expect(sidebar.querySelector('.app-shell__brand')?.textContent).toBe('Heater RepairWorkshop')
-    expect([...sidebar.querySelectorAll('nav a')].map(a => a.getAttribute('href'))).toEqual(['#dashboard', '#repairs'])
+    expect([...sidebar.querySelectorAll('nav a')].map(a => a.getAttribute('href'))).toEqual(['#dashboard', '#work-orders'])
     for (const [id, labels] of Object.entries({
-      'sidebar-operation': ['Reparaciones', 'Clientes'],
+      'sidebar-operation': ['Órdenes de trabajo', 'Clientes'],
       'sidebar-inventory': ['Repuestos'],
       'sidebar-management': ['Reportes'],
     })) {
@@ -131,7 +146,7 @@ describe('authenticated application shell', () => {
     const topbar = document.querySelector('.app-topbar')!
     const search = topbar.querySelector<HTMLInputElement>('#global-search')!
     expect(search.disabled).toBe(true)
-    expect(topbar.querySelector('label[for="global-search"]')?.textContent).toContain('Buscar reparaciones')
+    expect(topbar.querySelector('label[for="global-search"]')?.textContent).toContain('Buscar órdenes de trabajo')
     expect(topbar.querySelector('#search-availability')?.textContent).toContain('Próximamente')
     expect(topbar.querySelector('kbd')?.textContent).toBe('Ctrl+K')
     const bell = topbar.querySelector<HTMLButtonElement>('button[aria-label="Notificaciones — próximamente"]')!
@@ -151,9 +166,9 @@ describe('authenticated application shell', () => {
     toggle.click()
     expect(toggle.getAttribute('aria-expanded')).toBe('false')
     expect(document.querySelector('.app-shell--compact')).not.toBeNull()
-    expect(document.querySelector<HTMLAnchorElement>('a[href="#repairs"]')?.title).toBe('Reparaciones')
-    await navigate('repairs')
-    expect(active()).toBe('Reparaciones')
+    expect(document.querySelector<HTMLAnchorElement>('a[href="#work-orders"]')?.title).toBe('Órdenes de trabajo')
+    await navigate('work-orders')
+    expect(active()).toBe('Órdenes de trabajo')
     expect(document.querySelector('.app-shell--compact')).not.toBeNull()
     expect(document.querySelector('#logout .sidebar-label')?.textContent).toBe('Cerrar sesión')
     toggle.click()
@@ -163,15 +178,16 @@ describe('authenticated application shell', () => {
 
   it('shows contextual page headings without duplicating detail headings', async () => {
     await startup()
-    expect(panel('dashboard').querySelector('.app-shell__page-header')?.textContent).toContain('Resumen general del taller de reparaciones')
+    expect(panel('dashboard').querySelector('.app-shell__page-header')?.textContent).toContain('Resumen general del taller de órdenes de trabajo')
     expect(document.querySelectorAll('#workshop-clock')).toHaveLength(1)
-    await navigate('repairs')
-    expect(panel('repairs').querySelector('h1')?.textContent).toBe('Reparaciones')
-    expect(panel('repairs').querySelector('.app-shell__page-header')?.textContent).toContain('Gestión y seguimiento de reparaciones')
-    document.querySelector<HTMLAnchorElement>('.repair-detail-link')!.click()
-    await vi.waitFor(() => expect(panel('repair-detail').hidden).toBe(false))
-    expect(panel('repair-detail').querySelectorAll('h1')).toHaveLength(1)
-    expect(document.activeElement?.id).toBe('repair-detail-title')
+    await navigate('work-orders')
+    expect(panel('work-orders').querySelector('h1')?.textContent).toBe('Órdenes de trabajo')
+    expect(panel('work-orders').querySelector('.app-shell__page-header')?.textContent).toContain('Gestión de las órdenes de trabajo del taller')
+    await search()
+    document.querySelector<HTMLAnchorElement>('.work-order-detail-link')!.click()
+    await vi.waitFor(() => expect(panel('work-order-detail').hidden).toBe(false))
+    expect(panel('work-order-detail').querySelectorAll('h1')).toHaveLength(1)
+    expect(document.activeElement?.id).toBe('work-order-detail-title')
   })
 
   it('opens a mobile modal drawer, traps focus and closes by Escape, backdrop and close button', async () => {
@@ -207,9 +223,9 @@ describe('authenticated application shell', () => {
     await startup()
     const toggle = document.querySelector<HTMLButtonElement>('#sidebar-toggle')!
     toggle.click()
-    await navigate('repairs')
+    await navigate('work-orders')
     expect(document.querySelector<HTMLElement>('#app-sidebar')!.hidden).toBe(true)
-    expect(document.activeElement?.id).toBe('repairs-title')
+    expect(document.activeElement?.id).toBe('work-orders-title')
     toggle.click()
     vi.stubGlobal('innerWidth', 1280)
     window.dispatchEvent(new Event('resize'))
@@ -221,32 +237,36 @@ describe('authenticated application shell', () => {
 
   it('navigates without losing form input or filter selection and focuses the destination heading', async () => {
     await startup()
-    await navigate('repairs')
-    expect(active()).toBe('Reparaciones')
-    expect(document.activeElement?.id).toBe('repairs-title')
+    await navigate('work-orders')
+    expect(active()).toBe('Órdenes de trabajo')
+    expect(document.activeElement?.id).toBe('work-orders-title')
     expect(panel('dashboard').hidden).toBe(true)
-    document.querySelector<HTMLElement>('.order-form-panel summary')!.click()
+    await route('#work-orders/new', 'work-order-new')
     document.querySelector<HTMLInputElement>('#customer-name')!.value = 'Draft customer'
-    document.querySelector<HTMLButtonElement>('[data-repair-status="IN_PROGRESS"]')!.click()
-    expect(document.querySelectorAll('.repair-card')).toHaveLength(0)
+    await route('#work-orders/search', 'work-order-search')
+    document.querySelector<HTMLButtonElement>('[data-work-order-status="IN_PROGRESS"]')!.click()
+    expect(document.querySelectorAll('.work-order-card')).toHaveLength(0)
     await navigate('dashboard')
-    await navigate('repairs')
+    await navigate('work-orders')
     expect(document.querySelector<HTMLInputElement>('#customer-name')!.value).toBe('Draft customer')
-    expect(document.querySelector('[data-repair-status="IN_PROGRESS"]')?.getAttribute('aria-pressed')).toBe('true')
+    expect(document.querySelector('[data-work-order-status="IN_PROGRESS"]')?.getAttribute('aria-pressed')).toBe('true')
   })
 
   it('opens Repairs directly on refresh', async () => {
-    await startup('#repairs')
-    expect(active()).toBe('Reparaciones')
-    expect(panel('repairs').hidden).toBe(false)
-    expect(panel('repairs').querySelector('#repair-order-form')).not.toBeNull()
-    expect(panel('repairs').querySelector('.repair-card')).not.toBeNull()
+    await startup('#work-orders')
+    expect(active()).toBe('Órdenes de trabajo')
+    expect(panel('work-orders').hidden).toBe(false)
+    expect(panel('work-orders').querySelector('#work-order-form')).toBeNull()
+    expect(panel('work-orders').querySelector('.work-order-results')).toBeNull()
+    expect(panel('work-orders').querySelector('a[href="#work-orders/new"]')).not.toBeNull()
+    expect(panel('work-orders').querySelector('a[href="#work-orders/search"]')).not.toBeNull()
+    expect(fetchMock.mock.calls.some(([url]) => url === '/api/work-orders')).toBe(false)
   })
 
   it('recovers unknown fragments on startup and subsequent navigation', async () => {
     await startup('#unknown')
     expect(location.hash).toBe('#dashboard')
-    await navigate('repairs')
+    await navigate('work-orders')
     location.hash = '#not-a-route'
     await vi.waitFor(() => expect(location.hash).toBe('#dashboard'))
     expect(active()).toBe('Dashboard')
@@ -255,80 +275,35 @@ describe('authenticated application shell', () => {
 
   it('supports browser Back and Forward', async () => {
     await startup()
-    await navigate('repairs')
+    await navigate('work-orders')
     history.back()
     await vi.waitFor(() => expect(active()).toBe('Dashboard'))
     history.forward()
-    await vi.waitFor(() => expect(active()).toBe('Reparaciones'))
+    await vi.waitFor(() => expect(active()).toBe('Órdenes de trabajo'))
   })
 
   it('skips to main content with a native button without changing the route or history', async () => {
-    await startup('#repairs')
+    await startup('#work-orders')
     const skip = document.querySelector<HTMLButtonElement>('button.app-shell__skip')!
     expect(skip.type).toBe('button')
     expect(skip.tabIndex).toBe(0)
     expect(skip.hasAttribute('href')).toBe(false)
     expect(Array.from(document.querySelectorAll<HTMLAnchorElement>('.app-shell__nav a'), link => link.hash))
-      .toEqual(['#dashboard', '#repairs'])
+      .toEqual(['#dashboard', '#work-orders'])
     const historyLength = history.length
     skip.focus()
     expect(document.activeElement).toBe(skip)
     skip.click()
     expect(history.length).toBe(historyLength)
     expect(document.activeElement?.id).toBe('main-content')
-    expect(location.hash).toBe('#repairs')
-    expect(active()).toBe('Reparaciones')
-  })
-
-  it('preserves creation, start and complete actions after navigation', async () => {
-    await startup()
-    await navigate('repairs')
-    const creation = document.querySelector<HTMLDetailsElement>('.order-form-panel')!
-    expect(creation.open).toBe(false)
-    creation.querySelector<HTMLElement>('summary')!.click()
-    expect(creation.open).toBe(true)
-    for (const [id, value] of Object.entries({ 'customer-name': 'New Customer', 'customer-phone': '+56911112222',
-      'heater-brand': 'Bosch', 'heater-model': 'Therm', 'reported-issue': 'Turns off' })) {
-      document.querySelector<HTMLInputElement>('#' + id)!.value = value
-    }
-    document.querySelector('#repair-order-form')!.dispatchEvent(new Event('submit', { cancelable: true }))
-    await vi.waitFor(() => expect(document.querySelectorAll('.repair-card')).toHaveLength(2))
-    expect(active()).toBe('Reparaciones')
-    await navigate('dashboard')
-    expect(document.querySelector('.dashboard-summary__total strong')?.textContent).toBe('2')
-    expect(document.querySelector('.dashboard-metric--received dd')?.textContent).toBe('2')
-    await navigate('repairs')
-    const prompt = vi.spyOn(window, 'prompt')
-    document.querySelector<HTMLButtonElement>('[data-repair-order-id="order-1"][data-repair-action="start"]')!.click()
-    await vi.waitFor(() => expect(document.querySelector('#diagnosis-form')).not.toBeNull())
-    document.querySelector<HTMLTextAreaElement>('#repair-diagnosis')!.value = 'Replace valve'
-    document.querySelector('#diagnosis-form')!.dispatchEvent(new Event('submit', { cancelable: true }))
-    expect(prompt).not.toHaveBeenCalled()
-    await vi.waitFor(() => expect(document.querySelector('[data-repair-order-id="order-1"][data-repair-action="complete"]')).not.toBeNull())
-    await navigate('dashboard')
-    expect(document.querySelector('.dashboard-metric--received dd')?.textContent).toBe('1')
-    expect(document.querySelector('.dashboard-metric--in-progress dd')?.textContent).toBe('1')
-    await navigate('repairs')
-    document.querySelector<HTMLButtonElement>('[data-repair-order-id="order-1"][data-repair-action="complete"]')!.click()
-    await vi.waitFor(() => expect(panel('repair-detail').hidden).toBe(false))
-    document.querySelector<HTMLButtonElement>('#detail-complete')!.click()
-    document.querySelector<HTMLButtonElement>('#confirm-complete')!.click()
-    await vi.waitFor(() => expect(document.querySelector('.repair-card--completed')).not.toBeNull())
-    expect(active()).toBe('Reparaciones')
-    await navigate('dashboard')
-    expect(document.querySelector('.dashboard-metric--in-progress dd')?.textContent).toBe('0')
-    expect(document.querySelector('.dashboard-metric--completed dd')?.textContent).toBe('1')
-    expect(document.querySelector('.dashboard-summary__total strong')?.textContent).toBe('2')
-    expect(fetchMock.mock.calls.some(([url, init]) => url.endsWith('/start') && init.body === JSON.stringify({ diagnosis: 'Replace valve' }))).toBe(true)
-    document.querySelector<HTMLButtonElement>('#logout')!.click()
-    await vi.waitFor(() => expect(document.querySelector('#login-form')).not.toBeNull())
-    expect(document.querySelector('.app-shell')).toBeNull()
+    expect(location.hash).toBe('#work-orders')
+    expect(active()).toBe('Órdenes de trabajo')
   })
 
   it('keeps navigation and Sign out reachable during loading and recoverable order errors', async () => {
     const original = fetchMock.getMockImplementation()!
     let resolveOrders: (response: Response) => void = () => {}
-    fetchMock.mockImplementation((url: string, init: RequestInit) => url === '/api/repair-orders'
+    fetchMock.mockImplementation((url: string, init: RequestInit) => url === '/api/work-orders'
       ? new Promise<Response>(resolve => { resolveOrders = resolve }) : original(url, init))
     await import('../src/main.ts')
     await vi.waitFor(() => expect(document.querySelector('.app-shell [aria-busy="true"]')).not.toBeNull())
@@ -349,224 +324,85 @@ describe('authenticated application shell', () => {
     ['COMPLETED', ['order-3']],
   ])('filters the work queue by %s with accurate counts', async (filter, ids) => {
     const original = fetchMock.getMockImplementation()!
-    fetchMock.mockImplementation((url: string, init: RequestInit) => url === '/api/repair-orders'
+    fetchMock.mockImplementation((url: string, init: RequestInit) => url === '/api/work-orders'
       ? Promise.resolve(json([order, { ...order, id: 'order-2', status: 'IN_PROGRESS' },
         { ...order, id: 'order-3', status: 'COMPLETED' }])) : original(url, init))
-    await startup('#repairs')
-    const button = document.querySelector<HTMLButtonElement>(`[data-repair-status="${filter}"]`)!
-    button.focus()
-    button.click()
-    expect(Array.from(document.querySelectorAll('.repair-card'), row => row.getAttribute('data-order-id'))).toEqual(ids)
-    expect(document.querySelector('#visible-order-count')?.textContent).toBe(`${ids.length} orders`)
+    await startup('#work-orders')
+    await search(filter)
+    const button = document.querySelector<HTMLButtonElement>(`[data-work-order-status="${filter}"]`)!
+    expect(Array.from(document.querySelectorAll('.work-order-results tbody tr'), row => row.getAttribute('data-order-id'))).toEqual(ids)
+    expect(document.querySelector('#visible-order-count')?.textContent).toBe(`${ids.length} órdenes de trabajo`)
     expect(button.getAttribute('aria-pressed')).toBe('true')
-    expect(document.activeElement).toBe(button)
+    expect(document.activeElement?.id).toBe('work-order-results-title')
     expect(document.querySelectorAll('.filter-button[aria-pressed="true"]')).toHaveLength(1)
-    expect(Array.from(document.querySelectorAll('.filter-button strong'), count => count.textContent)).toEqual(['3', '1', '1', '1'])
-    expect(document.querySelector<HTMLElement>('#repair-order-empty')!.hidden).toBe(true)
+    expect(Array.from(document.querySelectorAll('.filter-button strong'), count => count.textContent)).toEqual(['3', '1', '0', '0', '0', '1', '1', '0'])
+    expect(document.querySelector('#work-order-empty')).toBeNull()
   })
 
   it('explains an empty collection and preserves access to creation', async () => {
     const original = fetchMock.getMockImplementation()!
-    fetchMock.mockImplementation((url: string, init: RequestInit) => url === '/api/repair-orders'
+    fetchMock.mockImplementation((url: string, init: RequestInit) => url === '/api/work-orders'
       ? Promise.resolve(json([])) : original(url, init))
-    await startup('#repairs')
-    expect(document.querySelectorAll('.repair-card')).toHaveLength(0)
-    const empty = document.querySelector<HTMLElement>('#repair-order-empty')!
-    expect(empty.hidden).toBe(false)
-    expect(empty.textContent).toContain('There are no repair orders.')
-    document.querySelector<HTMLElement>('.order-form-panel summary')!.click()
-    expect(document.querySelector<HTMLDetailsElement>('.order-form-panel')!.open).toBe(true)
-    expect(document.querySelector('#repair-order-form')).not.toBeNull()
+    await startup('#work-orders/search')
+    expect(document.querySelector('#work-order-empty')).toBeNull()
+    await search()
+    expect(document.querySelectorAll('.work-order-results tbody tr')).toHaveLength(0)
+    expect(document.querySelector('#work-order-empty')?.textContent).toBe('No se encontraron órdenes de trabajo')
+    await navigate('work-orders')
+    panel('work-orders').querySelector<HTMLAnchorElement>('a[href="#work-orders/new"]')!.click()
+    await vi.waitFor(() => expect(panel('work-order-new').hidden).toBe(false))
+    expect(panel('work-order-new').querySelector('#work-order-form')).not.toBeNull()
   })
 
   it('distinguishes a filter with no results and restores the All queue', async () => {
-    await startup('#repairs')
-    document.querySelector<HTMLButtonElement>('[data-repair-status="COMPLETED"]')!.click()
-    const empty = document.querySelector<HTMLElement>('#repair-order-empty')!
-    expect(empty.hidden).toBe(false)
-    expect(empty.textContent).toBe('There are no repairs matching this filter.')
-    expect(document.querySelectorAll('.repair-card')).toHaveLength(0)
-    document.querySelector<HTMLButtonElement>('[data-repair-status="all"]')!.click()
-    expect(empty.hidden).toBe(true)
-    expect(document.querySelectorAll('.repair-card')).toHaveLength(1)
+    await startup('#work-orders/search')
+    await search('COMPLETED')
+    expect(document.querySelector('#work-order-empty')?.textContent).toBe('No se encontraron órdenes de trabajo')
+    expect(document.querySelectorAll('.work-order-results tbody tr')).toHaveLength(0)
+    await search()
+    expect(document.querySelector('#work-order-empty')).toBeNull()
+    expect(document.querySelectorAll('.work-order-results tbody tr')).toHaveLength(1)
   })
-
-  it('retains inline action errors and allows retrying the current action', async () => {
-    await startup('#repairs')
-    const prompt = vi.spyOn(window, 'prompt')
-    const original = fetchMock.getMockImplementation()!
-    fetchMock.mockImplementation((url: string, init: RequestInit) => url.endsWith('/start')
-      ? Promise.resolve(json({}, 500)) : original(url, init))
-    document.querySelector<HTMLButtonElement>('[data-repair-action="start"]')!.click()
-    await vi.waitFor(() => expect(document.querySelector('#diagnosis-form')).not.toBeNull())
-    document.querySelector<HTMLTextAreaElement>('#repair-diagnosis')!.value = 'Replace valve'
-    const button = document.querySelector<HTMLButtonElement>('#diagnosis-form button')!
-    button.click()
-    expect(prompt).not.toHaveBeenCalled()
-    await vi.waitFor(() => expect(document.querySelector('#detail-action-error')?.textContent).toBe('Unable to complete the request.'))
-    expect(button.disabled).toBe(false)
-    expect(document.querySelector('.repair-card--received')).not.toBeNull()
-  })
-
 
   it('opens detail with a native link, preserves the filter and supports Back/Forward', async () => {
-    await startup('#repairs')
-    document.querySelector<HTMLButtonElement>('[data-repair-status="RECEIVED"]')!.click()
+    await startup('#work-orders')
+    await search('RECEIVED')
     const requestCount = fetchMock.mock.calls.length
-    document.querySelector<HTMLAnchorElement>('.repair-detail-link')!.click()
-    await vi.waitFor(() => expect(panel('repair-detail').hidden).toBe(false))
-    expect(location.hash).toBe('#repairs/order-1')
-    expect(active()).toBe('Reparaciones')
-    expect(document.activeElement?.id).toBe('repair-detail-title')
+    document.querySelector<HTMLAnchorElement>('.work-order-detail-link')!.click()
+    await vi.waitFor(() => expect(panel('work-order-detail').hidden).toBe(false))
+    expect(location.hash).toBe('#work-orders/order-1')
+    expect(active()).toBe('Órdenes de trabajo')
+    expect(document.activeElement?.id).toBe('work-order-detail-title')
     history.back()
-    await vi.waitFor(() => expect(panel('repairs').hidden).toBe(false))
+    await vi.waitFor(() => expect(panel('work-order-search').hidden).toBe(false))
     history.forward()
-    await vi.waitFor(() => expect(panel('repair-detail').hidden).toBe(false))
-    document.querySelector<HTMLAnchorElement>('.repair-detail > a')!.click()
-    await vi.waitFor(() => expect(panel('repairs').hidden).toBe(false))
-    expect(document.querySelector('[data-repair-status="RECEIVED"]')?.getAttribute('aria-pressed')).toBe('true')
+    await vi.waitFor(() => expect(panel('work-order-detail').hidden).toBe(false))
+    document.querySelector<HTMLAnchorElement>('.work-order-detail .work-orders-breadcrumb a')!.click()
+    await vi.waitFor(() => expect(panel('work-orders').hidden).toBe(false))
+    expect(document.querySelector('[data-work-order-status="RECEIVED"]')?.getAttribute('aria-pressed')).toBe('true')
     expect(fetchMock.mock.calls).toHaveLength(requestCount)
   })
 
   it('loads a direct detail URL and fails safely for missing or malformed IDs', async () => {
-    await startup('#repairs/order-1')
-    expect(panel('repair-detail').hidden).toBe(false)
-    expect(document.querySelector('#repair-detail-title')?.textContent).toContain('order-1')
-    location.hash = '#repairs/missing'
-    await vi.waitFor(() => expect(document.querySelector('#repair-detail-title')?.textContent).toBe('Repair not found'))
+    await startup('#work-orders/order-1')
+    expect(panel('work-order-detail').hidden).toBe(false)
+    expect(document.querySelector('#work-order-detail-title')?.textContent).toContain('order-1')
+    location.hash = '#work-orders/missing'
+    await vi.waitFor(() => expect(document.querySelector('#work-order-detail-title')?.textContent).toBe('Orden de trabajo no encontrada'))
     expect(document.querySelector('#diagnosis-form')).toBeNull()
-    location.hash = '#repairs/%E0%A4%A'
+    location.hash = '#work-orders/%E0%A4%A'
     await vi.waitFor(() => expect(location.hash).toBe('#dashboard'))
     expect(panel('dashboard').hidden).toBe(false)
   })
 
-  it('validates diagnosis inline and synchronizes both detail transitions with queue and Dashboard', async () => {
-    await startup('#repairs')
-    document.querySelector<HTMLButtonElement>('[data-repair-status="RECEIVED"]')!.click()
-    document.querySelector<HTMLAnchorElement>('.repair-detail-link')!.click()
-    await vi.waitFor(() => expect(document.querySelector('#diagnosis-form')).not.toBeNull())
-    const prompt = vi.spyOn(window, 'prompt')
-    const alert = vi.spyOn(window, 'alert')
-    const input = document.querySelector<HTMLTextAreaElement>('#repair-diagnosis')!
-    input.value = '   '
-    document.querySelector<HTMLButtonElement>('#diagnosis-form button')!.click()
-    expect(input.getAttribute('aria-invalid')).toBe('true')
-    expect(document.querySelector('#detail-action-error')?.textContent).toContain('A diagnosis is required')
-    expect(fetchMock.mock.calls.some(([url]) => url.endsWith('/start'))).toBe(false)
-    input.value = '  Replace valve  '
-    const form = document.querySelector<HTMLFormElement>('#diagnosis-form')!
-    form.dispatchEvent(new Event('submit', { cancelable: true }))
-    form.dispatchEvent(new Event('submit', { cancelable: true }))
-    expect(form.querySelector<HTMLButtonElement>('button')!.disabled).toBe(true)
-    await vi.waitFor(() => expect(document.querySelector('#detail-complete')).not.toBeNull())
-    expect(fetchMock.mock.calls.filter(([url]) => url.endsWith('/start'))).toHaveLength(1)
-    expect(fetchMock.mock.calls.find(([url]) => url.endsWith('/start'))?.[1].body).toBe(JSON.stringify({ diagnosis: 'Replace valve' }))
-    expect(panel('repair-detail').textContent).toContain('Replace valve')
-    expect(panel('repair-detail').querySelector('[aria-current="step"]')?.getAttribute('data-stage')).toBe('IN_PROGRESS')
-    expect(document.querySelector('.dashboard-metric--in-progress dd')?.textContent).toBe('1')
-    expect(document.querySelector('[data-repair-status="IN_PROGRESS"] strong')?.textContent).toBe('1')
-    expect(document.querySelector('[data-repair-status="RECEIVED"]')?.getAttribute('aria-pressed')).toBe('true')
-    document.querySelector<HTMLButtonElement>('#detail-complete')!.click()
-    const button = document.querySelector<HTMLButtonElement>('#confirm-complete')!
-    button.click()
-    button.click()
-    await vi.waitFor(() => expect(panel('repair-detail').querySelector('[aria-current="step"]')?.getAttribute('data-stage')).toBe('COMPLETED'))
-    expect(fetchMock.mock.calls.filter(([url]) => url.endsWith('/complete'))).toHaveLength(1)
-    const { formatRepairDate } = await import('../src/formatters/repair-time.ts')
-    expect(panel('repair-detail').querySelector('[data-stage="COMPLETED"] small')?.textContent).toBe(formatRepairDate('2026-09-26T13:00:00Z'))
-    expect(panel('repair-detail').querySelector('button')).toBeNull()
-    expect(document.querySelector('.dashboard-metric--completed dd')?.textContent).toBe('1')
-    expect(document.querySelector('[data-repair-status="COMPLETED"] strong')?.textContent).toBe('1')
-    expect(prompt).not.toHaveBeenCalled()
-    expect(alert).not.toHaveBeenCalled()
-  })
-
-  it('ignores a late detail mutation after logout', async () => {
-    await startup('#repairs/order-1')
-    const original = fetchMock.getMockImplementation()!
-    let resolveStart: ((value: Response) => void) | undefined
-    fetchMock.mockImplementation((url: string, init: RequestInit) => url.endsWith('/start')
-      ? new Promise<Response>(resolve => { resolveStart = resolve }) : original(url, init))
-    document.querySelector<HTMLTextAreaElement>('#repair-diagnosis')!.value = 'Replace valve'
-    document.querySelector<HTMLButtonElement>('#diagnosis-form button')!.click()
-    await vi.waitFor(() => expect(resolveStart).toBeDefined())
-    document.querySelector<HTMLButtonElement>('#logout')!.click()
-    await vi.waitFor(() => expect(document.querySelector('#login-form')).not.toBeNull())
-    resolveStart!(json({ ...order, status: 'IN_PROGRESS', diagnosis: 'Replace valve' }))
-    await new Promise(resolve => setTimeout(resolve, 0))
-    expect(document.querySelector('.app-shell')).toBeNull()
-    expect(document.querySelector('#login-form')).not.toBeNull()
-  })
-
-
-  it.each(['', '   '])('rejects blank diagnosis %j inline and focuses the input', async value => {
-    await startup('#repairs/order-1')
-    const input = document.querySelector<HTMLTextAreaElement>('#repair-diagnosis')!
-    input.value = value
-    document.querySelector<HTMLButtonElement>('#diagnosis-form button')!.click()
-    expect(document.activeElement).toBe(input)
-    expect(input.getAttribute('aria-invalid')).toBe('true')
-    expect(document.querySelector('#detail-action-error')?.textContent).toContain('A diagnosis is required')
-    expect(fetchMock.mock.calls.some(([url]) => url.endsWith('/start'))).toBe(false)
-  })
-
-  it.each(['start', 'complete'])('shows pending, retries failure and announces backend success for %s', async action => {
-    const initial = { ...order, status: action === 'start' ? 'RECEIVED' : 'IN_PROGRESS', diagnosis: null }
-    const original = fetchMock.getMockImplementation()!
-    let resolveAction: ((response: Response) => void) | undefined
-    fetchMock.mockImplementation((url: string, init: RequestInit) => {
-      if (url === '/api/repair-orders') return Promise.resolve(json([initial]))
-      if (url.endsWith('/' + action)) return new Promise<Response>(resolve => { resolveAction = resolve })
-      return original(url, init)
-    })
-    await startup('#repairs/order-1')
-    const input = document.querySelector<HTMLTextAreaElement>('#repair-diagnosis')
-    if (input) input.value = '  Replace valve  '
-    else document.querySelector<HTMLButtonElement>('#detail-complete')!.click()
-    const button = document.querySelector<HTMLButtonElement>('.repair-detail [data-repair-action]')!
-    const submit = () => input
-      ? document.querySelector('#diagnosis-form')!.dispatchEvent(new Event('submit', { cancelable: true }))
-      : button.dispatchEvent(new MouseEvent('click', { bubbles: true }))
-    submit(); submit(); submit()
-    expect(button.disabled).toBe(true)
-    expect(button.textContent).toBe(action === 'start' ? 'Starting repair…' : 'Completing repair…')
-    expect(document.querySelector('#detail-actions')?.getAttribute('aria-busy')).toBe('true')
-    if (!input) expect(document.querySelector<HTMLButtonElement>('#cancel-complete')!.disabled).toBe(true)
-    await vi.waitFor(() => expect(resolveAction).toBeDefined())
-    expect(fetchMock.mock.calls.filter(([url]) => url.endsWith('/' + action))).toHaveLength(1)
-    expect(panel('repair-detail').querySelector('[aria-current="step"]')?.getAttribute('data-stage')).toBe(initial.status)
-    resolveAction!(json({}, 500))
-    await vi.waitFor(() => expect(button.disabled).toBe(false))
-    expect(button.textContent).toBe(action === 'start' ? 'Start repair' : 'Complete repair')
-    expect(document.querySelector('#detail-actions')?.getAttribute('aria-busy')).toBe('false')
-    expect(document.querySelector('#detail-action-error')?.textContent).toBe('Unable to complete the request.')
-    expect(document.querySelector('#repair-action-status')?.textContent).toBe('')
-    expect(panel('repair-detail').querySelector('[aria-current="step"]')?.getAttribute('data-stage')).toBe(initial.status)
-    if (input) expect(input.value).toBe('  Replace valve  ')
-    resolveAction = undefined
-    submit()
-    await vi.waitFor(() => expect(resolveAction).toBeDefined())
-    const result = { ...initial, status: action === 'start' ? 'IN_PROGRESS' : 'COMPLETED', diagnosis: 'Backend diagnosis', completedAt: action === 'complete' ? '2026-10-01T09:00:00Z' : null }
-    resolveAction!(json(result))
-    await vi.waitFor(() => expect(document.querySelector('#repair-action-status')?.textContent).toBe(action === 'start' ? 'Repair started successfully.' : 'Repair completed successfully.'))
-    expect(document.querySelector('#repair-action-status')?.getAttribute('role')).toBe('status')
-    expect(panel('repair-detail').textContent).toContain('Backend diagnosis')
-    expect(panel('repair-detail').querySelector('[aria-current="step"]')?.getAttribute('data-stage')).toBe(result.status)
-    // Reload obtains the persisted state from the backend, not client storage.
-    fetchMock.mockImplementation((url: string, init: RequestInit) => url === '/api/repair-orders' ? Promise.resolve(json([result])) : original(url, init))
-    vi.resetModules()
-    await import('../src/main.ts')
-    await vi.waitFor(() => expect(panel('repair-detail').querySelector('[aria-current="step"]')?.getAttribute('data-stage')).toBe(result.status))
-    expect(document.querySelector('#repair-action-status')?.textContent).toBe('')
-  })
-
   it('requires confirmation, cancels without mutation and restores focus', async () => {
     const original = fetchMock.getMockImplementation()!
-    fetchMock.mockImplementation((url: string, init: RequestInit) => url === '/api/repair-orders'
+    fetchMock.mockImplementation((url: string, init: RequestInit) => url === '/api/work-orders'
       ? Promise.resolve(json([{ ...order, status: 'IN_PROGRESS' }])) : original(url, init))
-    await startup('#repairs')
-    document.querySelector<HTMLButtonElement>('[data-repair-action="complete"]')!.click()
-    await vi.waitFor(() => expect(panel('repair-detail').hidden).toBe(false))
+    await startup('#work-orders')
+    await route('#work-orders/order-1', 'work-order-detail')
+    await vi.waitFor(() => expect(document.querySelector('#detail-complete')).not.toBeNull())
+    await vi.waitFor(() => expect(panel('work-order-detail').hidden).toBe(false))
     const opener = document.querySelector<HTMLButtonElement>('#detail-complete')!
     const confirmation = document.querySelector<HTMLElement>('#complete-confirmation')!
     expect(confirmation.hidden).toBe(true)
@@ -574,7 +410,7 @@ describe('authenticated application shell', () => {
     expect(confirmation.hidden).toBe(false)
     expect(opener.getAttribute('aria-expanded')).toBe('true')
     expect(opener.getAttribute('aria-controls')).toBe(confirmation.id)
-    expect(confirmation.textContent).toContain('This will mark the repair order as completed.')
+    expect(confirmation.textContent).toContain('La orden de trabajo quedará marcada como completada.')
     expect(document.activeElement?.id).toBe('cancel-complete')
     expect(fetchMock.mock.calls.some(([url]) => url.endsWith('/complete'))).toBe(false)
     document.querySelector<HTMLButtonElement>('#cancel-complete')!.click()
@@ -589,11 +425,11 @@ describe('authenticated application shell', () => {
     const original = fetchMock.getMockImplementation()!
     let resolveComplete: ((response: Response) => void) | undefined
     fetchMock.mockImplementation((url: string, init: RequestInit) => {
-      if (url === '/api/repair-orders') return Promise.resolve(json([{ ...order, status: 'IN_PROGRESS' }]))
+      if (url === '/api/work-orders') return Promise.resolve(json([{ ...order, status: 'IN_PROGRESS' }]))
       if (url.endsWith('/complete')) return new Promise<Response>(resolve => { resolveComplete = resolve })
       return original(url, init)
     })
-    await startup('#repairs/order-1')
+    await startup('#work-orders/order-1')
     document.querySelector<HTMLButtonElement>('#detail-complete')!.click()
     document.querySelector<HTMLButtonElement>('#confirm-complete')!.click()
     await vi.waitFor(() => expect(resolveComplete).toBeDefined())
@@ -602,47 +438,20 @@ describe('authenticated application shell', () => {
     resolveComplete!(json({ ...order, status: 'COMPLETED', completedAt: '2026-10-01T09:00:00Z' }))
     await new Promise(resolve => setTimeout(resolve, 0))
     expect(document.querySelector('.app-shell')).toBeNull()
-    expect(document.querySelector('#repair-action-status')).toBeNull()
-  })
-
-
-  it('keeps an action pending across detail navigation and restores retry after failure', async () => {
-    const original = fetchMock.getMockImplementation()!
-    let resolveStart: ((response: Response) => void) | undefined
-    fetchMock.mockImplementation((url: string, init: RequestInit) => {
-      if (url === '/api/repair-orders') return Promise.resolve(json([order, { ...order, id: 'other' }]))
-      if (url.endsWith('/start')) return new Promise<Response>(resolve => { resolveStart = resolve })
-      return original(url, init)
-    })
-    await startup('#repairs/order-1')
-    document.querySelector<HTMLTextAreaElement>('#repair-diagnosis')!.value = 'Keep this diagnosis'
-    document.querySelector<HTMLButtonElement>('#diagnosis-form button')!.click()
-    await vi.waitFor(() => expect(resolveStart).toBeDefined())
-    location.hash = '#repairs/other'
-    await vi.waitFor(() => expect(document.querySelector('#repair-detail-title')?.textContent).toContain('other'))
-    location.hash = '#repairs/order-1'
-    await vi.waitFor(() => expect(document.querySelector('#repair-detail-title')?.textContent).toContain('order-1'))
-    expect(document.querySelector<HTMLButtonElement>('#diagnosis-form button')!.disabled).toBe(true)
-    document.querySelector('#diagnosis-form')!.dispatchEvent(new Event('submit', { cancelable: true }))
-    expect(fetchMock.mock.calls.filter(([url]) => url.endsWith('/start'))).toHaveLength(1)
-    resolveStart!(json({}, 500))
-    await vi.waitFor(() => expect(document.querySelector<HTMLButtonElement>('#diagnosis-form button')!.disabled).toBe(false))
-    expect(document.querySelector<HTMLTextAreaElement>('#repair-diagnosis')!.value).toBe('Keep this diagnosis')
-    expect(document.activeElement?.id).toBe('detail-action-error')
-    expect(document.querySelector('#detail-action-error')?.textContent).toBe('Unable to complete the request.')
+    expect(document.querySelector('#work-order-action-status')).toBeNull()
   })
 
 
   it('keeps native form labels, landmarks and non-focusable lifecycle semantics', async () => {
-    await startup('#repairs/order-1')
+    await startup('#work-orders/order-1')
     expect(document.querySelectorAll('main')).toHaveLength(1)
     expect(document.querySelectorAll('nav[aria-label="Application"]')).toHaveLength(1)
-    expect(document.querySelector('.app-shell__nav [aria-current="page"]')?.textContent).toBe('Reparaciones')
-    expect(panel('repair-detail').querySelector('ol.repair-lifecycle')).not.toBeNull()
-    expect(panel('repair-detail').querySelectorAll('.repair-lifecycle [tabindex], .repair-lifecycle button, .repair-lifecycle a')).toHaveLength(0)
-    expect(panel('repair-detail').querySelectorAll('[aria-current="step"]')).toHaveLength(1)
+    expect(document.querySelector('.app-shell__nav [aria-current="page"]')?.textContent).toBe('Órdenes de trabajo')
+    expect(panel('work-order-detail').querySelector('ol.work-order-lifecycle')).not.toBeNull()
+    expect(panel('work-order-detail').querySelectorAll('.work-order-lifecycle [tabindex], .work-order-lifecycle button, .work-order-lifecycle a')).toHaveLength(0)
+    expect(panel('work-order-detail').querySelectorAll('[aria-current="step"]')).toHaveLength(1)
     expect(document.querySelector('#detail-action-error')?.getAttribute('role')).toBe('alert')
-    expect(document.querySelector('#repair-action-status')?.getAttribute('role')).toBe('status')
+    expect(document.querySelector('#work-order-action-status')?.getAttribute('role')).toBe('status')
     for (const field of document.querySelectorAll<HTMLInputElement | HTMLTextAreaElement>('.app-shell input, .app-shell textarea')) {
       expect(document.querySelector(`label[for="${field.id}"]`)).not.toBeNull()
       for (const id of field.getAttribute('aria-describedby')?.split(' ') ?? []) expect(document.getElementById(id)).not.toBeNull()
@@ -650,44 +459,204 @@ describe('authenticated application shell', () => {
   })
 
   it('focuses the first invalid creation field and advances to the next invalid field', async () => {
-    await startup('#repairs')
-    document.querySelector<HTMLElement>('.order-form-panel summary')!.click()
-    const submit = document.querySelector<HTMLButtonElement>('#repair-order-form button')!
+    await startup('#work-orders')
+    await route('#work-orders/new', 'work-order-new')
+    const submit = document.querySelector<HTMLButtonElement>('#work-order-form button')!
     submit.click()
     expect(document.activeElement?.id).toBe('customer-name')
     expect(document.activeElement?.getAttribute('aria-invalid')).toBe('true')
     document.querySelector<HTMLInputElement>('#customer-name')!.value = 'Customer'
     submit.click()
     expect(document.activeElement?.id).toBe('customer-phone')
-    expect(fetchMock.mock.calls.some(([url, init]) => url === '/api/repair-orders' && init.method === 'POST')).toBe(false)
+    expect(fetchMock.mock.calls.some(([url, init]) => url === '/api/work-orders' && init.method === 'POST')).toBe(false)
   })
 
-  it.each(['start', 'complete'])('restores destination focus when %s resolves after navigation', async action => {
+})
+
+describe('I5 intention-driven repairs', () => {
+  const collectionRequests = () => fetchMock.mock.calls.filter(([url, init]) => url === '/api/work-orders' && (!init.method || init.method === 'GET'))
+  const submitQuery = () => document.querySelector('#work-order-search-form')!.dispatchEvent(new Event('submit', { cancelable: true }))
+
+  it.each([
+    ['#work-orders', 'work-orders', 'work-orders-title'],
+    ['#work-orders/new', 'work-order-new', 'work-order-new-title'],
+    ['#work-orders/search', 'work-order-search', 'work-order-search-title'],
+  ])('opens %s without loading orders and keeps the module active', async (hash, destination, heading) => {
+    await startup(hash)
+    expect(collectionRequests()).toHaveLength(0)
+    expect(active()).toBe('Órdenes de trabajo')
+    expect(panel(destination).hidden).toBe(false)
+    expect(panel(destination).querySelector('h1')?.id).toBe(heading)
+    expect(document.querySelector('.work-order-results')).toBeNull()
+    expect(document.querySelector('#work-order-results-title')).toBeNull()
+    expect(panel('work-orders').querySelector('form, table, .work-order-filters')).toBeNull()
+  })
+
+  it('navigates through the two capabilities and cancels creation with heading focus', async () => {
+    await startup('#work-orders')
+    panel('work-orders').querySelector<HTMLAnchorElement>('a[href="#work-orders/new"]')!.click()
+    await vi.waitFor(() => expect(document.activeElement?.id).toBe('work-order-new-title'))
+    expect(panel('work-order-new').querySelector('form')).not.toBeNull()
+    panel('work-order-new').querySelector<HTMLAnchorElement>('.work-orders-secondary-action')!.click()
+    await vi.waitFor(() => expect(document.activeElement?.id).toBe('work-orders-title'))
+    panel('work-orders').querySelector<HTMLAnchorElement>('a[href="#work-orders/search"]')!.click()
+    await vi.waitFor(() => expect(document.activeElement?.id).toBe('work-order-search-title'))
+    expect(document.querySelector<HTMLElement>('#work-order-search-initial')!.hidden).toBe(false)
+    expect(collectionRequests()).toHaveLength(0)
+  })
+
+  it('waits for explicit search even with a cached Dashboard collection and reapplies filters only on submit', async () => {
+    await startup()
+    await route('#work-orders/search', 'work-order-search')
+    expect(document.querySelector('.work-order-results')).toBeNull()
+    document.querySelector<HTMLButtonElement>('[data-work-order-status="COMPLETED"]')!.click()
+    expect(document.querySelector('#work-order-empty')).toBeNull()
+    expect(collectionRequests()).toHaveLength(1)
+    await search('COMPLETED')
+    expect(document.querySelector('#work-order-empty')?.textContent).toBe('No se encontraron órdenes de trabajo')
+    document.querySelector<HTMLButtonElement>('[data-work-order-status="all"]')!.click()
+    expect(document.querySelector('.work-order-results')).toBeNull()
+    submitQuery()
+    await vi.waitFor(() => expect(document.querySelectorAll('.work-order-results tbody tr')).toHaveLength(1))
+    expect(collectionRequests()).toHaveLength(1)
+    expect(document.activeElement?.id).toBe('work-order-results-title')
+    expect(panel('work-order-search').textContent).toContain('Recibidas')
+    expect(panel('work-order-search').textContent).not.toMatch(/Repair work queue|View detail|Start repair/)
+  })
+
+  it('loads only once for duplicate pending queries and offers retry after failure', async () => {
+    await startup('#work-orders/search')
     const original = fetchMock.getMockImplementation()!
-    let resolveAction: ((response: Response) => void) | undefined
-    fetchMock.mockImplementation((url: string, init: RequestInit) => {
-      if (url === '/api/repair-orders') return Promise.resolve(json([{ ...order, status: action === 'start' ? 'RECEIVED' : 'IN_PROGRESS' }]))
-      if (url.endsWith('/' + action)) return new Promise<Response>(resolve => { resolveAction = resolve })
-      return original(url, init)
-    })
-    await startup('#repairs/order-1')
-    if (action === 'start') {
-      document.querySelector<HTMLTextAreaElement>('#repair-diagnosis')!.value = 'Diagnosis'
-      document.querySelector<HTMLButtonElement>('#diagnosis-form button')!.click()
-    } else {
-      document.querySelector<HTMLButtonElement>('#detail-complete')!.click()
-      document.querySelector<HTMLButtonElement>('#confirm-complete')!.click()
-    }
-    await vi.waitFor(() => expect(resolveAction).toBeDefined())
-    await navigate('dashboard')
-    const previousHeading = document.activeElement
-    expect(previousHeading?.id).toBe('dashboard-title')
-    resolveAction!(json({ ...order, status: action === 'start' ? 'IN_PROGRESS' : 'COMPLETED', diagnosis: 'Diagnosis' }))
-    await vi.waitFor(() => expect(document.querySelector('#repair-action-status')?.textContent).toContain('successfully'))
-    expect(previousHeading?.isConnected).toBe(false)
-    expect(document.activeElement?.id).toBe('dashboard-title')
-    expect(document.activeElement?.isConnected).toBe(true)
-    expect(location.hash).toBe('#dashboard')
+    let resolveQuery: ((response: Response) => void) | undefined
+    fetchMock.mockImplementation((url: string, init: RequestInit) => url === '/api/work-orders'
+      ? new Promise<Response>(resolve => { resolveQuery = resolve }) : original(url, init))
+    submitQuery(); submitQuery()
+    await vi.waitFor(() => expect(resolveQuery).toBeDefined())
+    expect(collectionRequests()).toHaveLength(1)
+    expect(document.querySelector('#work-order-search-form')?.getAttribute('aria-busy')).toBe('true')
+    resolveQuery!(json({}, 500))
+    await vi.waitFor(() => expect(document.querySelector('#work-order-search-error')?.textContent).toBe('No se pudo completar la solicitud.'))
+    expect(document.querySelector<HTMLButtonElement>('#work-order-search-form button[type="submit"]')!.disabled).toBe(false)
+    expect(document.querySelector('#work-order-empty')).toBeNull()
+    fetchMock.mockImplementation(original)
+    await search()
+    expect(collectionRequests()).toHaveLength(2)
+    expect(document.querySelectorAll('.work-order-results tbody tr')).toHaveLength(1)
   })
 
+  it('preserves a creation draft and its focus when a query finishes after navigation', async () => {
+    await startup('#work-orders/search')
+    const original = fetchMock.getMockImplementation()!
+    let resolveQuery: ((response: Response) => void) | undefined
+    fetchMock.mockImplementation((url: string, init: RequestInit) => url === '/api/work-orders'
+      ? new Promise<Response>(resolve => { resolveQuery = resolve }) : original(url, init))
+    submitQuery()
+    await vi.waitFor(() => expect(resolveQuery).toBeDefined())
+    await route('#work-orders/new', 'work-order-new')
+    const input = document.querySelector<HTMLInputElement>('#customer-name')!
+    input.value = 'Borrador conservado'
+    input.focus()
+    resolveQuery!(json([order]))
+    await vi.waitFor(() => expect(document.querySelector('#work-order-results-title')).not.toBeNull())
+    expect(input.isConnected).toBe(true)
+    expect(input.value).toBe('Borrador conservado')
+    expect(document.activeElement).toBe(input)
+    expect(location.hash).toBe('#work-orders/new')
+  })
+
+  it('ignores a late collection response after logout', async () => {
+    await startup('#work-orders/search')
+    const original = fetchMock.getMockImplementation()!
+    let resolveQuery: ((response: Response) => void) | undefined
+    fetchMock.mockImplementation((url: string, init: RequestInit) => url === '/api/work-orders'
+      ? new Promise<Response>(resolve => { resolveQuery = resolve }) : original(url, init))
+    submitQuery()
+    await vi.waitFor(() => expect(resolveQuery).toBeDefined())
+    document.querySelector<HTMLButtonElement>('#logout')!.click()
+    await vi.waitFor(() => expect(document.querySelector('#login-form')).not.toBeNull())
+    resolveQuery!(json([order]))
+    await new Promise(resolve => setTimeout(resolve, 0))
+    expect(document.querySelector('.app-shell')).toBeNull()
+    expect(document.querySelector('#login-form')).not.toBeNull()
+  })
+
+  it('keeps the creation payload and CSRF contract, blocks duplicate submissions and opens the created detail', async () => {
+    await startup('#work-orders/new')
+    const payload = { customerName: 'Cliente real', customerContact: '+56911112222', heaterBrand: 'Bosch', heaterModel: 'Therm', serviceType: ServiceType.REPAIR, reportedIssue: 'No enciende' }
+    for (const [name, value] of Object.entries(payload)) {
+      if (name === 'serviceType') continue
+      document.querySelector<HTMLInputElement>(`[name="${name}"]`)!.value = name === 'customerContact' ? value.slice(4) : ` ${value} `
+    }
+    const form = document.querySelector('#work-order-form')!
+    form.dispatchEvent(new Event('submit', { cancelable: true }))
+    form.dispatchEvent(new Event('submit', { cancelable: true }))
+    await vi.waitFor(() => expect(location.hash).toBe('#work-orders/order-2'))
+    await vi.waitFor(() => expect(document.activeElement?.id).toBe('work-order-detail-title'))
+    const requests = fetchMock.mock.calls.filter(([url, init]) => url === '/api/work-orders' && init.method === 'POST')
+    expect(requests).toHaveLength(1)
+    expect(JSON.parse(requests[0]![1].body as string)).toEqual(payload)
+    expect(new Headers(requests[0]![1].headers).get('X-CSRF-TOKEN')).toBe('test-token')
+    expect(collectionRequests()).toHaveLength(0)
+    expect(panel('work-order-detail').textContent).toContain('Cliente real')
+    expect(document.querySelector('#work-order-action-status')?.textContent).toBe('Orden de trabajo creada correctamente.')
+    await navigate('dashboard')
+    await vi.waitFor(() => expect(collectionRequests()).toHaveLength(1))
+  })
+})
+
+describe('I5 asynchronous route safeguards', () => {
+  it('preserves a newly created order when an older collection request finishes', async () => {
+    await startup('#work-orders/search')
+    const original = fetchMock.getMockImplementation()!
+    let resolveOrders: ((response: Response) => void) | undefined
+    fetchMock.mockImplementation((url: string, init: RequestInit) => url === '/api/work-orders' && !init.method
+      ? new Promise<Response>(resolve => { resolveOrders = resolve }) : original(url, init))
+    document.querySelector('#work-order-search-form')!.dispatchEvent(new Event('submit', { cancelable: true }))
+    await vi.waitFor(() => expect(resolveOrders).toBeDefined())
+    await route('#work-orders/new', 'work-order-new')
+    for (const [name, value] of Object.entries({ customerName: 'Nuevo cliente', customerContact: '+56911112222', heaterBrand: 'Bosch', heaterModel: 'Therm', serviceType: ServiceType.REPAIR, reportedIssue: 'No enciende' })) {
+      if (name === 'serviceType') continue
+      document.querySelector<HTMLInputElement>(`[name="${name}"]`)!.value = name === 'customerContact' ? value.slice(4) : value
+    }
+    document.querySelector('#work-order-form')!.dispatchEvent(new Event('submit', { cancelable: true }))
+    await vi.waitFor(() => expect(location.hash).toBe('#work-orders/order-2'))
+    await vi.waitFor(() => expect(panel('work-order-detail').textContent).toContain('Nuevo cliente'))
+    resolveOrders!(json([order]))
+    await vi.waitFor(() => expect(document.querySelector('#visible-order-count')?.textContent).toBe('2 órdenes de trabajo'))
+    expect(panel('work-order-detail').textContent).toContain('Nuevo cliente')
+    expect(document.querySelector('[data-kpi=total] dd')?.textContent).toBe('2')
+  })
+
+  it('clears protected UI if an explicit query returns an expired session', async () => {
+    await startup('#work-orders/search')
+    const original = fetchMock.getMockImplementation()!
+    fetchMock.mockImplementation((url: string, init: RequestInit) => url === '/api/work-orders'
+      ? Promise.resolve(json({}, 401)) : original(url, init))
+    document.querySelector('#work-order-search-form')!.dispatchEvent(new Event('submit', { cancelable: true }))
+    await vi.waitFor(() => expect(document.querySelector('#login-form')).not.toBeNull())
+    expect(document.querySelector('.app-shell')).toBeNull()
+    expect(document.querySelector('#login-error')?.textContent).toContain('Tu sesión ha expirado')
+    expect(fetchMock.mock.calls.filter(([url]) => url === '/api/work-orders')).toHaveLength(1)
+  })
+})
+
+describe('I6 target contract', () => {
+  it.each(['', 'Mantención preventiva solicitada'])('sends maintenance observations %j unchanged through the existing service', async reportedIssue => {
+    await startup('#work-orders/new')
+    for (const [name, value] of Object.entries({ customerName: 'Juan Pérez', customerContact: '12345678', heaterBrand: 'Junkers', heaterModel: 'WR11', reportedIssue })) {
+      document.querySelector<HTMLInputElement>(`[name="${name}"]`)!.value = value
+    }
+    document.querySelector<HTMLInputElement>('input[value="MAINTENANCE"]')!.click()
+    document.querySelector('#work-order-form')!.dispatchEvent(new Event('submit', { cancelable: true }))
+    await vi.waitFor(() => expect(location.hash).toBe('#work-orders/order-2'))
+    await vi.waitFor(() => expect(panel('work-order-detail').textContent).toContain('Mantención'))
+    const requests = fetchMock.mock.calls.filter(([url, init]) => url === '/api/work-orders' && init.method === 'POST')
+    expect(requests).toHaveLength(1)
+    expect(JSON.parse(requests[0]![1].body as string)).toEqual({ customerName: 'Juan Pérez', customerContact: '+56912345678', heaterBrand: 'Junkers', heaterModel: 'WR11', serviceType: 'MAINTENANCE', reportedIssue })
+    expect(new Headers(requests[0]![1].headers).get('X-CSRF-TOKEN')).toBe('test-token')
+    expect(panel('work-order-detail').textContent).toContain('Observaciones')
+    expect(panel('work-order-detail').textContent).toContain(reportedIssue || '—')
+    expect(document.querySelector('#diagnosis-form')).toBeNull()
+    expect(document.querySelector('[data-work-order-action="start"]')).not.toBeNull()
+  })
 })

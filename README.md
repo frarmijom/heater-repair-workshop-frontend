@@ -1,6 +1,6 @@
 # Heater Repair Workshop - Frontend (Taller Fuego Sur)
 
-Interactive web application for the visual and comprehensive management of work orders in a heater repair workshop. It allows real-time monitoring of workshop workload metrics, filtering repair orders across their lifecycle (Received, In Repair, Completed), and registering new orders with real-time reactive validation and asynchronous handling.
+Interactive web application for the visual and comprehensive management of work orders in a heater repair workshop. It allows collection-based monitoring of workshop workload metrics, filtering repair orders across their lifecycle (Received, In Repair, Completed), and registering new orders with real-time reactive validation and asynchronous handling.
 
 ## Technologies
 
@@ -83,14 +83,14 @@ npm run deploy
 ```
 
 Validate the deployment by opening the web application and confirming that the
-repair-order list loads from Render. The API can also be checked directly:
+work-order list loads from Render. The API can also be checked directly:
 
 ```bash
-curl -i https://heater-repair-workshop-api.onrender.com/api/repair-orders
+curl -i https://heater-repair-workshop-api.onrender.com/api/work-orders
 ```
 
 Without a session it must return `401`. `/api/health` returns `200` with an empty
-body. Authenticate through the UI to view orders; no repair-order data is loaded
+body. Authenticate through the UI to view orders; no work-order data is loaded
 before session validation. Sign out invalidates the backend session, and expired
 sessions return to login. No credentials are stored in localStorage/sessionStorage.
 
@@ -99,3 +99,21 @@ TypeScript checks and the production bundle. Vitest and jsdom are development-on
 dependencies. The existing Vite and Nginx local proxies are unchanged. Use the
 backend `dev` profile for local HTTP; production requires HTTPS and Secure cookies.
 See the backend `docs/AUTH-01.md` for first-user provisioning and remaining QA.
+
+
+## Work Orders v1
+
+The resource is `/api/work-orders`; UI routes use `#work-orders`.
+Repair orders require diagnosis and an explicit customer decision before work starts.
+Approval records whether parts are available; otherwise work waits for parts.
+Rejection closes the order as `NOT_APPROVED`. Maintenance can start directly or wait
+for parts, without diagnosis or repair approval. Only work in progress can complete.
+
+The detail displays the current state and valid business actions. The Dashboard
+represents all seven states and distinguishes completed work from rejected repairs.
+Session authentication and CSRF headers remain required for mutations.
+
+Historical orders display their `LEGACY` provenance. Historical work already in
+progress can complete without inventing approval; new `V1` repairs cannot use this
+exception. The backend migration must be applied before starting the updated API;
+see the backend `docs/WORK-ORDERS-V1.md` runbook. No deployment is part of this change.

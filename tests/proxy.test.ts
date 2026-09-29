@@ -45,7 +45,7 @@ it('preserves API failure statuses and cookie expiration', async () => {
     .mockResolvedValueOnce(new Response(null, { status: 204, headers: {
       'Set-Cookie': 'WORKSHOP_SESSION=; Path=/; Max-Age=0; Secure; HttpOnly; SameSite=Lax',
     } })))
-  expect((await worker.fetch(new Request('https://workshop.example/api/repair-orders'), env)).status).toBe(401)
+  expect((await worker.fetch(new Request('https://workshop.example/api/work-orders'), env)).status).toBe(401)
   const response = await worker.fetch(new Request('https://workshop.example/api/auth/logout', { method: 'POST' }), env)
   expect(response.status).toBe(204)
   expect(response.headers.get('Set-Cookie')).toContain('Max-Age=0')

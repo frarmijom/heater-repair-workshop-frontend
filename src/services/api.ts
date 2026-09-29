@@ -1,5 +1,5 @@
 export class SessionExpiredError extends Error {
-  constructor() { super('Your session has expired. Please sign in again.') }
+  constructor() { super('Tu sesión ha expirado. Inicia sesión nuevamente.') }
 }
 
 interface Csrf { headerName: string; token: string }
@@ -26,20 +26,20 @@ export async function apiRequest<T>(path: string, init: RequestInit = {}): Promi
   try {
     response = await fetch(`/api${path}`, { ...init, headers, credentials: 'same-origin', cache: 'no-store' })
   } catch {
-    throw new Error('Unable to complete the request.')
+    throw new Error('No se pudo completar la solicitud.')
   }
   if (response.status === 401) {
     clearCsrf()
-    if (path === '/auth/login') throw new Error('Invalid credentials.')
+    if (path === '/auth/login') throw new Error('Credenciales incorrectas.')
     onSessionExpired()
     throw new SessionExpiredError()
   }
   if (!response.ok) {
     // The next explicit submission obtains a fresh token; never replay a mutation.
     if (response.status === 403) clearCsrf()
-    throw new Error('Unable to complete the request.')
+    throw new Error('No se pudo completar la solicitud.')
   }
   if (response.status === 204) return undefined as T
   try { return await response.json() as T }
-  catch { throw new Error('Unable to complete the request.') }
+  catch { throw new Error('No se pudo completar la solicitud.') }
 }

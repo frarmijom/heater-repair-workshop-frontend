@@ -1,2 +1,3 @@
-export { RepairStatus } from './repair-order.ts'
-export type { CreateRepairOrderPayload, RepairOrder } from './repair-order.ts'
+export { WorkOrderStatus } from './work-order.ts'
+export type { CreateWorkOrderPayload, WorkOrder } from './work-order.ts'
+export { ServiceType } from './service-type.ts'
