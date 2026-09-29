@@ -67,6 +67,8 @@ export interface InventoryMovement {
   reason: string | null
   referenceType: string | null
   referenceId: string | null
+  workOrderId: string | null
+  reversalOfMovementId: string | null
   skuSnapshot: string
   itemNameSnapshot: string
   unitNameSnapshot: string
@@ -84,3 +86,18 @@ export const receiveItemStock = (id: string, input: InventoryReceiptInput): Prom
   method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(input),
 })
 export const listItemMovements = (id: string): Promise<InventoryMovement[]> => apiRequest(`/inventory/items/${encodeURIComponent(id)}/movements`)
+
+export interface InventoryAdjustmentInput {
+  requestId: string
+  direction: 'INCREASE' | 'DECREASE'
+  quantity: string
+  reason: string
+}
+export interface InventoryReversalInput { requestId: string; reason: string }
+
+export const adjustItemStock = (id: string, input: InventoryAdjustmentInput): Promise<InventoryMovement> => apiRequest(`/inventory/items/${encodeURIComponent(id)}/adjustments`, {
+  method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(input),
+})
+export const reverseInventoryMovement = (movementId: string, input: InventoryReversalInput): Promise<InventoryMovement> => apiRequest(`/inventory/items/movements/${encodeURIComponent(movementId)}/reversal`, {
+  method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(input),
+})

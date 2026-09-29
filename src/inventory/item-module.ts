@@ -1,6 +1,6 @@
 import { escapeHtml } from '../components/work-order-card.ts'
 import { ApiRequestError, SessionExpiredError } from '../services/api.ts'
-import { createItem, editItem, listItemCatalog, listItems, listItemMovements, receiveItemStock, type InventoryCatalogOption, type InventoryItem, type InventoryItemInput, type InventoryMovement } from './item-service.ts'
+import { adjustItemStock, createItem, editItem, listItemCatalog, listItems, listItemMovements, receiveItemStock, reverseInventoryMovement, type InventoryCatalogOption, type InventoryItem, type InventoryItemInput, type InventoryMovement } from './item-service.ts'
 
 type ItemFilters = { query: string; state: 'all' | 'active' | 'inactive'; category: string; lowStock: boolean }
 
@@ -18,8 +18,11 @@ export function createInventoryItemModule(root: HTMLElement) {
   let confirming: InventoryItem | undefined
   let operating: InventoryItem | undefined
   let movementHistory: InventoryMovement[] = []
-  let operationMode: 'receipt' | 'history' | undefined
+  let operationMode: 'receipt' | 'adjustment' | 'history' | undefined
   let receiptRequestId = ''
+  let adjustmentRequestId = ''
+  let reversing: InventoryMovement | undefined
+  let reversalRequestId = ''
   let message = ''
   let error = ''
   let filters: ItemFilters = { query: '', state: 'all', category: 'all', lowStock: false }
@@ -55,11 +58,16 @@ export function createInventoryItemModule(root: HTMLElement) {
       target.querySelector('#items-empty-create')?.addEventListener('click', () => openForm())
       return
     }
-    target.innerHTML = `<div class="inventory-items-table-wrap"><table class="inventory-items-table"><caption class="dashboard-sr-only">Artículos del inventario</caption><thead><tr><th scope="col">SKU</th><th scope="col">Artículo</th><th scope="col">Categoría</th><th scope="col">Unidad</th><th scope="col">Stock actual</th><th scope="col">Stock mínimo</th><th scope="col">Costo referencia</th><th scope="col">Estado</th><th scope="col">Acciones</th></tr></thead><tbody>${visible.map(item => `<tr><td data-label="SKU"><strong>${escapeHtml(item.sku)}</strong></td><th scope="row" data-label="Artículo">${escapeHtml(item.name)}${item.lowStock ? '<span class="inventory-low-stock" role="status">Stock bajo</span>' : ''}</th><td data-label="Categoría">${escapeHtml(item.category.name)}</td><td data-label="Unidad">${escapeHtml(item.unit.name)} (${escapeHtml(item.unit.symbol)})</td><td data-label="Stock actual">${escapeHtml(String(item.stockCurrent))}</td><td data-label="Stock mínimo">${escapeHtml(String(item.stockMinimum))}</td><td data-label="Costo referencia">${escapeHtml(String(item.referenceUnitCost))}</td><td data-label="Estado"><span class="catalog-state">${item.active ? 'ACTIVO' : 'INACTIVO'}</span></td><td data-label="Acciones"><div class="catalog-row-actions"><button type="button" data-receipt="${escapeHtml(item.id)}" ${!item.active || saving ? 'disabled' : ''}>Entrada</button><button type="button" data-history="${escapeHtml(item.id)}">Historial</button><button type="button" data-edit="${escapeHtml(item.id)}" aria-label="Editar ${escapeHtml(item.name)}" ${saving ? 'disabled' : ''}>Editar</button><button type="button" data-toggle="${escapeHtml(item.id)}" aria-label="${item.active ? 'Desactivar' : 'Reactivar'} ${escapeHtml(item.name)}" ${saving ? 'disabled' : ''}>${item.active ? 'Desactivar' : 'Reactivar'}</button></div></td></tr>`).join('')}</tbody></table></div>`
+    target.innerHTML = `<div class="inventory-items-table-wrap"><table class="inventory-items-table"><caption class="dashboard-sr-only">Artículos del inventario</caption><thead><tr><th scope="col">SKU</th><th scope="col">Artículo</th><th scope="col">Categoría</th><th scope="col">Unidad</th><th scope="col">Stock actual</th><th scope="col">Stock mínimo</th><th scope="col">Costo referencia</th><th scope="col">Estado</th><th scope="col">Acciones</th></tr></thead><tbody>${visible.map(item => `<tr><td data-label="SKU"><strong>${escapeHtml(item.sku)}</strong></td><th scope="row" data-label="Artículo">${escapeHtml(item.name)}${item.lowStock ? '<span class="inventory-low-stock" role="status">Stock bajo</span>' : ''}</th><td data-label="Categoría">${escapeHtml(item.category.name)}</td><td data-label="Unidad">${escapeHtml(item.unit.name)} (${escapeHtml(item.unit.symbol)})</td><td data-label="Stock actual">${escapeHtml(String(item.stockCurrent))}</td><td data-label="Stock mínimo">${escapeHtml(String(item.stockMinimum))}</td><td data-label="Costo referencia">${escapeHtml(String(item.referenceUnitCost))}</td><td data-label="Estado"><span class="catalog-state">${item.active ? 'ACTIVO' : 'INACTIVO'}</span></td><td data-label="Acciones"><div class="catalog-row-actions"><button type="button" data-receipt="${escapeHtml(item.id)}" ${!item.active || saving ? 'disabled' : ''}>Entrada</button><button type="button" data-adjust="${escapeHtml(item.id)}" ${!item.active || saving ? 'disabled' : ''}>Ajustar</button><button type="button" data-history="${escapeHtml(item.id)}">Historial</button><button type="button" data-edit="${escapeHtml(item.id)}" aria-label="Editar ${escapeHtml(item.name)}" ${saving ? 'disabled' : ''}>Editar</button><button type="button" data-toggle="${escapeHtml(item.id)}" aria-label="${item.active ? 'Desactivar' : 'Reactivar'} ${escapeHtml(item.name)}" ${saving ? 'disabled' : ''}>${item.active ? 'Desactivar' : 'Reactivar'}</button></div></td></tr>`).join('')}</tbody></table></div>`
     target.querySelectorAll<HTMLButtonElement>('[data-receipt]').forEach(button => button.addEventListener('click', () => {
       operating = items.find(item => item.id === button.dataset.receipt)
       operationMode = 'receipt'; receiptRequestId = ''; movementHistory = []; render()
       root.querySelector<HTMLInputElement>('#receipt-quantity')?.focus()
+    }))
+    target.querySelectorAll<HTMLButtonElement>('[data-adjust]').forEach(button => button.addEventListener('click', () => {
+      operating = items.find(item => item.id === button.dataset.adjust)
+      operationMode = 'adjustment'; adjustmentRequestId = ''; movementHistory = []; reversing = undefined; render()
+      root.querySelector<HTMLInputElement>('#adjustment-quantity')?.focus()
     }))
     target.querySelectorAll<HTMLButtonElement>('[data-history]').forEach(button => button.addEventListener('click', () => {
       const item = items.find(value => value.id === button.dataset.history)
@@ -108,7 +116,16 @@ export function createInventoryItemModule(root: HTMLElement) {
     })
     root.querySelector<HTMLFormElement>('#receipt-form')?.addEventListener('submit', event => { event.preventDefault(); void submitReceipt() })
     root.querySelector<HTMLFormElement>('#receipt-form')?.addEventListener('input', () => { receiptRequestId = '' })
-    root.querySelector<HTMLButtonElement>('#operation-close')?.addEventListener('click', () => { operating = undefined; operationMode = undefined; movementHistory = []; render() })
+    root.querySelector<HTMLFormElement>('#adjustment-form')?.addEventListener('submit', event => { event.preventDefault(); void submitAdjustment() })
+    root.querySelector<HTMLFormElement>('#adjustment-form')?.addEventListener('input', () => { adjustmentRequestId = '' })
+    root.querySelector<HTMLFormElement>('#reversal-form')?.addEventListener('submit', event => { event.preventDefault(); void submitReversal() })
+    root.querySelector<HTMLFormElement>('#reversal-form')?.addEventListener('input', () => { reversalRequestId = '' })
+    root.querySelector<HTMLButtonElement>('#reversal-cancel')?.addEventListener('click', () => { reversing = undefined; reversalRequestId = ''; render() })
+    root.querySelectorAll<HTMLButtonElement>('[data-reverse]').forEach(button => button.addEventListener('click', () => {
+      reversing = movementHistory.find(movement => movement.id === button.dataset.reverse)
+      reversalRequestId = ''; render(); root.querySelector<HTMLInputElement>('#reversal-reason')?.focus()
+    }))
+    root.querySelector<HTMLButtonElement>('#operation-close')?.addEventListener('click', () => { operating = undefined; operationMode = undefined; movementHistory = []; reversing = undefined; render() })
     renderRows()
     renderConfirmation()
   }
@@ -116,8 +133,14 @@ export function createInventoryItemModule(root: HTMLElement) {
   function operationHtml() {
     if (!operating || !operationMode) return ''
     if (operationMode === 'receipt') return `<section class="work-orders-surface inventory-item-form-surface" aria-labelledby="receipt-heading"><div class="catalog-heading"><div><h2 id="receipt-heading">Registrar entrada · ${escapeHtml(operating.name)}</h2><p>Stock actual: <strong>${escapeHtml(String(operating.stockCurrent))} ${escapeHtml(operating.unit.symbol)}</strong></p></div><button id="operation-close" type="button">Cerrar</button></div><form id="receipt-form" novalidate><div class="inventory-item-form-grid"><div class="form-field"><label for="receipt-quantity">Cantidad *</label><input id="receipt-quantity" type="number" min="0" step="${operating.unit.allowsDecimal ? '0.001' : '1'}" required><small id="receipt-quantity-error"></small></div><div class="form-field"><label for="receipt-cost">Costo unitario *</label><input id="receipt-cost" type="number" min="0" step="0.0001" value="${escapeHtml(String(operating.referenceUnitCost))}" required><small id="receipt-cost-error"></small></div><div class="form-field"><label for="receipt-reason">Motivo *</label><input id="receipt-reason" maxlength="1000" value="Reposición de stock" required><small id="receipt-reason-error"></small></div></div><div class="order-form__actions"><button type="submit" ${saving ? 'disabled' : ''}>${saving ? 'Registrando…' : 'Registrar entrada'}</button></div><p id="receipt-error" role="alert"></p></form></section>`
-    const rows = movementHistory.map(m => `<tr><td>${escapeHtml(new Date(m.occurredAt).toLocaleString())}</td><td>${escapeHtml(m.type)}</td><td>${m.direction === 'INCREASE' ? '+' : '-'}${escapeHtml(String(m.quantity))} ${escapeHtml(m.unitSymbolSnapshot)}</td><td>${escapeHtml(String(m.stockBefore))} → ${escapeHtml(String(m.stockAfter))}</td><td>${escapeHtml(String(m.unitCostSnapshot))}</td><td>${escapeHtml(m.actor)}</td><td>${escapeHtml(m.reason ?? '—')}</td></tr>`).join('')
-    return `<section class="work-orders-surface inventory-items-surface" aria-labelledby="history-heading"><div class="catalog-heading"><div><h2 id="history-heading">Historial · ${escapeHtml(operating.name)}</h2><p>${escapeHtml(operating.sku)}</p></div><button id="operation-close" type="button">Cerrar</button></div>${rows ? `<div class="inventory-items-table-wrap"><table class="inventory-items-table"><thead><tr><th>Fecha</th><th>Tipo</th><th>Cantidad</th><th>Saldo</th><th>Costo unitario</th><th>Actor</th><th>Motivo</th></tr></thead><tbody>${rows}</tbody></table></div>` : '<p>No hay movimientos registrados.</p>'}</section>`
+    if (operationMode === 'adjustment') return `<section class="work-orders-surface inventory-item-form-surface" aria-labelledby="adjustment-heading"><div class="catalog-heading"><div><h2 id="adjustment-heading">Ajustar stock · ${escapeHtml(operating.name)}</h2><p>Stock actual: <strong>${escapeHtml(String(operating.stockCurrent))} ${escapeHtml(operating.unit.symbol)}</strong></p></div><button id="operation-close" type="button">Cerrar</button></div><form id="adjustment-form" novalidate><div class="inventory-item-form-grid"><div class="form-field"><label for="adjustment-direction">Tipo de ajuste *</label><select id="adjustment-direction"><option value="INCREASE">Aumentar stock</option><option value="DECREASE">Disminuir stock</option></select></div><div class="form-field"><label for="adjustment-quantity">Cantidad *</label><input id="adjustment-quantity" type="number" min="0" step="${operating.unit.allowsDecimal ? '0.001' : '1'}" required><small id="adjustment-quantity-error"></small></div><div class="form-field"><label for="adjustment-reason">Motivo *</label><input id="adjustment-reason" maxlength="1000" required><small id="adjustment-reason-error"></small></div></div><p class="inventory-operation-note">El ajuste quedará registrado en el historial. El stock no se edita directamente.</p><div class="order-form__actions"><button type="submit" ${saving ? 'disabled' : ''}>${saving ? 'Aplicando…' : 'Aplicar ajuste'}</button></div><p id="adjustment-error" role="alert"></p></form></section>`
+    const reversedIds = new Set(movementHistory.map(m => m.reversalOfMovementId).filter(Boolean))
+    const rows = movementHistory.map(m => {
+      const reversible = (m.type === 'ENTRY' || m.type === 'ADJUSTMENT') && !reversedIds.has(m.id)
+      return `<tr><td>${escapeHtml(new Date(m.occurredAt).toLocaleString())}</td><td>${escapeHtml(m.type)}</td><td>${m.direction === 'INCREASE' ? '+' : '-'}${escapeHtml(String(m.quantity))} ${escapeHtml(m.unitSymbolSnapshot)}</td><td>${escapeHtml(String(m.stockBefore))} → ${escapeHtml(String(m.stockAfter))}</td><td>${escapeHtml(String(m.unitCostSnapshot))}</td><td>${escapeHtml(m.actor)}</td><td>${escapeHtml(m.reason ?? '—')}</td><td>${reversible ? `<button type="button" data-reverse="${escapeHtml(m.id)}" ${saving ? 'disabled' : ''}>Revertir</button>` : m.reversalOfMovementId ? 'Reversión' : reversedIds.has(m.id) ? 'Revertido' : '—'}</td></tr>`
+    }).join('')
+    const reversal = reversing ? `<form id="reversal-form" class="inventory-reversal-form" novalidate><h3>Revertir movimiento</h3><p>Se creará un movimiento compensatorio por ${escapeHtml(String(reversing.quantity))} ${escapeHtml(reversing.unitSymbolSnapshot)}. El movimiento original se conservará.</p><div class="form-field"><label for="reversal-reason">Motivo *</label><input id="reversal-reason" maxlength="1000" required><small id="reversal-reason-error"></small></div><div class="order-form__actions"><button type="submit" ${saving ? 'disabled' : ''}>${saving ? 'Revirtiendo…' : 'Confirmar reversión'}</button><button id="reversal-cancel" type="button">Cancelar</button></div><p id="reversal-error" role="alert"></p></form>` : ''
+    return `<section class="work-orders-surface inventory-items-surface" aria-labelledby="history-heading"><div class="catalog-heading"><div><h2 id="history-heading">Historial · ${escapeHtml(operating.name)}</h2><p>${escapeHtml(operating.sku)}</p></div><button id="operation-close" type="button">Cerrar</button></div>${rows ? `<div class="inventory-items-table-wrap"><table class="inventory-items-table"><thead><tr><th>Fecha</th><th>Tipo</th><th>Cantidad</th><th>Saldo</th><th>Costo unitario</th><th>Actor</th><th>Motivo</th><th>Acción</th></tr></thead><tbody>${rows}</tbody></table></div>` : '<p>No hay movimientos registrados.</p>'}${reversal}</section>`
   }
 
   async function openHistory(item: InventoryItem) {
@@ -149,6 +172,51 @@ export function createInventoryItemModule(root: HTMLElement) {
     } catch (reasonValue) {
       saving = false
       if (!(reasonValue instanceof SessionExpiredError)) { const el = root.querySelector<HTMLElement>('#receipt-error'); if (el) el.textContent = errorText(reasonValue) }
+    }
+  }
+
+  async function submitAdjustment() {
+    if (!operating || saving) return
+    const direction = root.querySelector<HTMLSelectElement>('#adjustment-direction')!.value as 'INCREASE' | 'DECREASE'
+    const quantity = root.querySelector<HTMLInputElement>('#adjustment-quantity')!.value
+    const reason = root.querySelector<HTMLInputElement>('#adjustment-reason')!.value.trim()
+    let invalid = !decimalValid(quantity, 3) || Number(quantity) <= 0
+    if (!operating.unit.allowsDecimal && quantity.includes('.') && /[1-9]/.test(quantity.split('.')[1] ?? '')) invalid = true
+    root.querySelector<HTMLElement>('#adjustment-quantity-error')!.textContent = invalid ? 'Ingresa una cantidad válida mayor que cero.' : ''
+    root.querySelector<HTMLElement>('#adjustment-reason-error')!.textContent = reason ? '' : 'Ingresa un motivo.'
+    if (invalid || !reason) return
+    saving = true
+    adjustmentRequestId ||= globalThis.crypto?.randomUUID?.() ?? `adjustment-${Date.now()}-${Math.random().toString(36).slice(2)}`
+    const itemId = operating.id
+    try {
+      await adjustItemStock(itemId, { requestId: adjustmentRequestId, direction, quantity, reason })
+      items = await listItems(); operating = items.find(item => item.id === itemId)
+      movementHistory = await listItemMovements(itemId)
+      message = 'Ajuste registrado correctamente.'
+      adjustmentRequestId = ''; operationMode = 'history'; saving = false; render()
+    } catch (reasonValue) {
+      saving = false
+      if (!(reasonValue instanceof SessionExpiredError)) root.querySelector<HTMLElement>('#adjustment-error')!.textContent = errorText(reasonValue)
+    }
+  }
+
+  async function submitReversal() {
+    if (!operating || !reversing || saving) return
+    const reason = root.querySelector<HTMLInputElement>('#reversal-reason')!.value.trim()
+    root.querySelector<HTMLElement>('#reversal-reason-error')!.textContent = reason ? '' : 'Ingresa un motivo.'
+    if (!reason) return
+    saving = true
+    reversalRequestId ||= globalThis.crypto?.randomUUID?.() ?? `reversal-${Date.now()}-${Math.random().toString(36).slice(2)}`
+    const itemId = operating.id
+    try {
+      await reverseInventoryMovement(reversing.id, { requestId: reversalRequestId, reason })
+      items = await listItems(); operating = items.find(item => item.id === itemId)
+      movementHistory = await listItemMovements(itemId)
+      message = 'Movimiento revertido correctamente.'
+      reversing = undefined; reversalRequestId = ''; saving = false; render()
+    } catch (reasonValue) {
+      saving = false
+      if (!(reasonValue instanceof SessionExpiredError)) root.querySelector<HTMLElement>('#reversal-error')!.textContent = errorText(reasonValue)
     }
   }
 

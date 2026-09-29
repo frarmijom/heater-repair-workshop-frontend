@@ -1280,3 +1280,10 @@ body::before {
   .inventory-item-filters, .inventory-item-form-grid { grid-template-columns: minmax(0, 1fr); }
   .inventory-items-table tr { grid-template-columns: minmax(0, 1fr); }
 }
+
+/* HITO 05 / I5: controlled inventory adjustments and movement reversals. */
+.inventory-operation-note { margin: .75rem 0; color: var(--ui-text-secondary); font-size: .8rem; }
+.inventory-reversal-form { display: grid; gap: .75rem; max-width: 42rem; margin-top: 1rem; padding: 1rem; border: 1px solid var(--ui-border); border-radius: var(--ui-radius); background: var(--ui-background); }
+.inventory-reversal-form h3 { margin: 0; }
+.inventory-reversal-form .form-field input { width: 100%; min-height: 44px; }
+.inventory-reversal-form [role="alert"], .inventory-reversal-form small { color: #a23529; }
