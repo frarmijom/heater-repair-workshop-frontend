@@ -1,6 +1,6 @@
 import { escapeHtml } from '../components/work-order-card.ts'
 import { ApiRequestError, SessionExpiredError } from '../services/api.ts'
-import { createItem, editItem, listItemCatalog, listItems, type InventoryCatalogOption, type InventoryItem, type InventoryItemInput } from './item-service.ts'
+import { createItem, editItem, listItemCatalog, listItems, listItemMovements, receiveItemStock, type InventoryCatalogOption, type InventoryItem, type InventoryItemInput, type InventoryMovement } from './item-service.ts'
 
 type ItemFilters = { query: string; state: 'all' | 'active' | 'inactive'; category: string; lowStock: boolean }
 
@@ -16,6 +16,10 @@ export function createInventoryItemModule(root: HTMLElement) {
   let editing: InventoryItem | undefined
   let formOpen = false
   let confirming: InventoryItem | undefined
+  let operating: InventoryItem | undefined
+  let movementHistory: InventoryMovement[] = []
+  let operationMode: 'receipt' | 'history' | undefined
+  let receiptRequestId = ''
   let message = ''
   let error = ''
   let filters: ItemFilters = { query: '', state: 'all', category: 'all', lowStock: false }
@@ -51,7 +55,16 @@ export function createInventoryItemModule(root: HTMLElement) {
       target.querySelector('#items-empty-create')?.addEventListener('click', () => openForm())
       return
     }
-    target.innerHTML = `<div class="inventory-items-table-wrap"><table class="inventory-items-table"><caption class="dashboard-sr-only">Artículos del inventario</caption><thead><tr><th scope="col">SKU</th><th scope="col">Artículo</th><th scope="col">Categoría</th><th scope="col">Unidad</th><th scope="col">Stock actual</th><th scope="col">Stock mínimo</th><th scope="col">Costo referencia</th><th scope="col">Estado</th><th scope="col">Acciones</th></tr></thead><tbody>${visible.map(item => `<tr><td data-label="SKU"><strong>${escapeHtml(item.sku)}</strong></td><th scope="row" data-label="Artículo">${escapeHtml(item.name)}${item.lowStock ? '<span class="inventory-low-stock" role="status">Stock bajo</span>' : ''}</th><td data-label="Categoría">${escapeHtml(item.category.name)}</td><td data-label="Unidad">${escapeHtml(item.unit.name)} (${escapeHtml(item.unit.symbol)})</td><td data-label="Stock actual">${escapeHtml(String(item.stockCurrent))}</td><td data-label="Stock mínimo">${escapeHtml(String(item.stockMinimum))}</td><td data-label="Costo referencia">${escapeHtml(String(item.referenceUnitCost))}</td><td data-label="Estado"><span class="catalog-state">${item.active ? 'ACTIVO' : 'INACTIVO'}</span></td><td data-label="Acciones"><div class="catalog-row-actions"><button type="button" data-edit="${escapeHtml(item.id)}" aria-label="Editar ${escapeHtml(item.name)}" ${saving ? 'disabled' : ''}>Editar</button><button type="button" data-toggle="${escapeHtml(item.id)}" aria-label="${item.active ? 'Desactivar' : 'Reactivar'} ${escapeHtml(item.name)}" ${saving ? 'disabled' : ''}>${item.active ? 'Desactivar' : 'Reactivar'}</button></div></td></tr>`).join('')}</tbody></table></div>`
+    target.innerHTML = `<div class="inventory-items-table-wrap"><table class="inventory-items-table"><caption class="dashboard-sr-only">Artículos del inventario</caption><thead><tr><th scope="col">SKU</th><th scope="col">Artículo</th><th scope="col">Categoría</th><th scope="col">Unidad</th><th scope="col">Stock actual</th><th scope="col">Stock mínimo</th><th scope="col">Costo referencia</th><th scope="col">Estado</th><th scope="col">Acciones</th></tr></thead><tbody>${visible.map(item => `<tr><td data-label="SKU"><strong>${escapeHtml(item.sku)}</strong></td><th scope="row" data-label="Artículo">${escapeHtml(item.name)}${item.lowStock ? '<span class="inventory-low-stock" role="status">Stock bajo</span>' : ''}</th><td data-label="Categoría">${escapeHtml(item.category.name)}</td><td data-label="Unidad">${escapeHtml(item.unit.name)} (${escapeHtml(item.unit.symbol)})</td><td data-label="Stock actual">${escapeHtml(String(item.stockCurrent))}</td><td data-label="Stock mínimo">${escapeHtml(String(item.stockMinimum))}</td><td data-label="Costo referencia">${escapeHtml(String(item.referenceUnitCost))}</td><td data-label="Estado"><span class="catalog-state">${item.active ? 'ACTIVO' : 'INACTIVO'}</span></td><td data-label="Acciones"><div class="catalog-row-actions"><button type="button" data-receipt="${escapeHtml(item.id)}" ${!item.active || saving ? 'disabled' : ''}>Entrada</button><button type="button" data-history="${escapeHtml(item.id)}">Historial</button><button type="button" data-edit="${escapeHtml(item.id)}" aria-label="Editar ${escapeHtml(item.name)}" ${saving ? 'disabled' : ''}>Editar</button><button type="button" data-toggle="${escapeHtml(item.id)}" aria-label="${item.active ? 'Desactivar' : 'Reactivar'} ${escapeHtml(item.name)}" ${saving ? 'disabled' : ''}>${item.active ? 'Desactivar' : 'Reactivar'}</button></div></td></tr>`).join('')}</tbody></table></div>`
+    target.querySelectorAll<HTMLButtonElement>('[data-receipt]').forEach(button => button.addEventListener('click', () => {
+      operating = items.find(item => item.id === button.dataset.receipt)
+      operationMode = 'receipt'; receiptRequestId = ''; movementHistory = []; render()
+      root.querySelector<HTMLInputElement>('#receipt-quantity')?.focus()
+    }))
+    target.querySelectorAll<HTMLButtonElement>('[data-history]').forEach(button => button.addEventListener('click', () => {
+      const item = items.find(value => value.id === button.dataset.history)
+      if (item) void openHistory(item)
+    }))
     target.querySelectorAll<HTMLButtonElement>('[data-edit]').forEach(button => button.addEventListener('click', () => {
       editing = items.find(item => item.id === button.dataset.edit)
       formOpen = true
@@ -78,7 +91,7 @@ export function createInventoryItemModule(root: HTMLElement) {
   }
 
   function render() {
-    root.innerHTML = `<header class="app-shell__page-header"><div><h1 id="inventory-title" tabindex="-1">Artículos</h1><p>Existencias y datos de inventario del taller</p></div><button id="item-new" type="button" ${saving || loading ? 'disabled' : ''}>Nuevo artículo</button></header>${nav()}<p id="item-status" role="status">${escapeHtml(message)}</p><section class="work-orders-surface inventory-items-surface" aria-labelledby="items-heading"><div class="catalog-heading"><h2 id="items-heading">Listado de artículos</h2><button id="items-reload" type="button" ${saving || loading ? 'disabled' : ''}>Actualizar listado</button></div><form id="item-filters" class="inventory-item-filters"><div class="form-field"><label for="item-search">Buscar SKU o nombre</label><input id="item-search" type="search" value="${escapeHtml(filters.query)}"></div><div class="form-field"><label for="item-state">Estado</label><select id="item-state"><option value="all" ${filters.state === 'all' ? 'selected' : ''}>Todos</option><option value="active" ${filters.state === 'active' ? 'selected' : ''}>Activos</option><option value="inactive" ${filters.state === 'inactive' ? 'selected' : ''}>Inactivos</option></select></div><div class="form-field"><label for="item-category-filter">Categoría</label><select id="item-category-filter"><option value="all">Todas</option>${categories.map(category => `<option value="${escapeHtml(category.id)}" ${filters.category === category.id ? 'selected' : ''}>${escapeHtml(category.name)}</option>`).join('')}</select></div><label class="inventory-low-filter"><input id="item-low-stock" type="checkbox" ${filters.lowStock ? 'checked' : ''}> Solo stock bajo</label></form><div id="inventory-item-results" aria-live="polite"></div></section><div id="item-confirmation"></div><div id="item-form-region">${formHtml()}</div>`
+    root.innerHTML = `<header class="app-shell__page-header"><div><h1 id="inventory-title" tabindex="-1">Artículos</h1><p>Existencias y datos de inventario del taller</p></div><button id="item-new" type="button" ${saving || loading ? 'disabled' : ''}>Nuevo artículo</button></header>${nav()}<p id="item-status" role="status">${escapeHtml(message)}</p><section class="work-orders-surface inventory-items-surface" aria-labelledby="items-heading"><div class="catalog-heading"><h2 id="items-heading">Listado de artículos</h2><button id="items-reload" type="button" ${saving || loading ? 'disabled' : ''}>Actualizar listado</button></div><form id="item-filters" class="inventory-item-filters"><div class="form-field"><label for="item-search">Buscar SKU o nombre</label><input id="item-search" type="search" value="${escapeHtml(filters.query)}"></div><div class="form-field"><label for="item-state">Estado</label><select id="item-state"><option value="all" ${filters.state === 'all' ? 'selected' : ''}>Todos</option><option value="active" ${filters.state === 'active' ? 'selected' : ''}>Activos</option><option value="inactive" ${filters.state === 'inactive' ? 'selected' : ''}>Inactivos</option></select></div><div class="form-field"><label for="item-category-filter">Categoría</label><select id="item-category-filter"><option value="all">Todas</option>${categories.map(category => `<option value="${escapeHtml(category.id)}" ${filters.category === category.id ? 'selected' : ''}>${escapeHtml(category.name)}</option>`).join('')}</select></div><label class="inventory-low-filter"><input id="item-low-stock" type="checkbox" ${filters.lowStock ? 'checked' : ''}> Solo stock bajo</label></form><div id="inventory-item-results" aria-live="polite"></div></section><div id="item-confirmation"></div><div id="item-operation-region">${operationHtml()}</div><div id="item-form-region">${formHtml()}</div>`
     root.querySelector<HTMLButtonElement>('#item-new')!.addEventListener('click', () => openForm())
     root.querySelector<HTMLButtonElement>('#items-reload')!.addEventListener('click', () => { void load() })
     root.querySelector<HTMLInputElement>('#item-search')!.addEventListener('input', event => { filters.query = (event.currentTarget as HTMLInputElement).value; renderRows() })
@@ -93,8 +106,50 @@ export function createInventoryItemModule(root: HTMLElement) {
       const initial = root.querySelector<HTMLInputElement>('#item-initial-stock')
       if (initial) initial.step = selected?.allowsDecimal ? '0.001' : '1'
     })
+    root.querySelector<HTMLFormElement>('#receipt-form')?.addEventListener('submit', event => { event.preventDefault(); void submitReceipt() })
+    root.querySelector<HTMLFormElement>('#receipt-form')?.addEventListener('input', () => { receiptRequestId = '' })
+    root.querySelector<HTMLButtonElement>('#operation-close')?.addEventListener('click', () => { operating = undefined; operationMode = undefined; movementHistory = []; render() })
     renderRows()
     renderConfirmation()
+  }
+
+  function operationHtml() {
+    if (!operating || !operationMode) return ''
+    if (operationMode === 'receipt') return `<section class="work-orders-surface inventory-item-form-surface" aria-labelledby="receipt-heading"><div class="catalog-heading"><div><h2 id="receipt-heading">Registrar entrada · ${escapeHtml(operating.name)}</h2><p>Stock actual: <strong>${escapeHtml(String(operating.stockCurrent))} ${escapeHtml(operating.unit.symbol)}</strong></p></div><button id="operation-close" type="button">Cerrar</button></div><form id="receipt-form" novalidate><div class="inventory-item-form-grid"><div class="form-field"><label for="receipt-quantity">Cantidad *</label><input id="receipt-quantity" type="number" min="0" step="${operating.unit.allowsDecimal ? '0.001' : '1'}" required><small id="receipt-quantity-error"></small></div><div class="form-field"><label for="receipt-cost">Costo unitario *</label><input id="receipt-cost" type="number" min="0" step="0.0001" value="${escapeHtml(String(operating.referenceUnitCost))}" required><small id="receipt-cost-error"></small></div><div class="form-field"><label for="receipt-reason">Motivo *</label><input id="receipt-reason" maxlength="1000" value="Reposición de stock" required><small id="receipt-reason-error"></small></div></div><div class="order-form__actions"><button type="submit" ${saving ? 'disabled' : ''}>${saving ? 'Registrando…' : 'Registrar entrada'}</button></div><p id="receipt-error" role="alert"></p></form></section>`
+    const rows = movementHistory.map(m => `<tr><td>${escapeHtml(new Date(m.occurredAt).toLocaleString())}</td><td>${escapeHtml(m.type)}</td><td>${m.direction === 'INCREASE' ? '+' : '-'}${escapeHtml(String(m.quantity))} ${escapeHtml(m.unitSymbolSnapshot)}</td><td>${escapeHtml(String(m.stockBefore))} → ${escapeHtml(String(m.stockAfter))}</td><td>${escapeHtml(String(m.unitCostSnapshot))}</td><td>${escapeHtml(m.actor)}</td><td>${escapeHtml(m.reason ?? '—')}</td></tr>`).join('')
+    return `<section class="work-orders-surface inventory-items-surface" aria-labelledby="history-heading"><div class="catalog-heading"><div><h2 id="history-heading">Historial · ${escapeHtml(operating.name)}</h2><p>${escapeHtml(operating.sku)}</p></div><button id="operation-close" type="button">Cerrar</button></div>${rows ? `<div class="inventory-items-table-wrap"><table class="inventory-items-table"><thead><tr><th>Fecha</th><th>Tipo</th><th>Cantidad</th><th>Saldo</th><th>Costo unitario</th><th>Actor</th><th>Motivo</th></tr></thead><tbody>${rows}</tbody></table></div>` : '<p>No hay movimientos registrados.</p>'}</section>`
+  }
+
+  async function openHistory(item: InventoryItem) {
+    operating = item; operationMode = 'history'; movementHistory = []; render()
+    const current = generation
+    try { movementHistory = await listItemMovements(item.id); if (valid(current)) render() }
+    catch (reason) { if (valid(current) && !(reason instanceof SessionExpiredError)) { message = errorText(reason); operating = undefined; operationMode = undefined; render() } }
+  }
+
+  async function submitReceipt() {
+    if (!operating || saving) return
+    const quantity = root.querySelector<HTMLInputElement>('#receipt-quantity')!.value
+    const unitCost = root.querySelector<HTMLInputElement>('#receipt-cost')!.value
+    const reason = root.querySelector<HTMLInputElement>('#receipt-reason')!.value.trim()
+    let invalid = !decimalValid(quantity, 3) || Number(quantity) <= 0
+    if (!operating.unit.allowsDecimal && quantity.includes('.') && /[1-9]/.test(quantity.split('.')[1] ?? '')) invalid = true
+    root.querySelector<HTMLElement>('#receipt-quantity-error')!.textContent = invalid ? 'Ingresa una cantidad válida mayor que cero.' : ''
+    const badCost = !decimalValid(unitCost, 4)
+    root.querySelector<HTMLElement>('#receipt-cost-error')!.textContent = badCost ? 'Ingresa un costo no negativo con hasta 4 decimales.' : ''
+    root.querySelector<HTMLElement>('#receipt-reason-error')!.textContent = reason ? '' : 'Ingresa un motivo.'
+    if (invalid || badCost || !reason) return
+    saving = true; receiptRequestId ||= globalThis.crypto?.randomUUID?.() ?? `receipt-${Date.now()}-${Math.random().toString(36).slice(2)}`
+    const itemId = operating.id
+    try {
+      await receiveItemStock(itemId, { requestId: receiptRequestId, quantity, unitCost, reason })
+      const refreshed = await listItems(); items = refreshed; operating = refreshed.find(item => item.id === itemId)
+      message = 'Entrada registrada correctamente.'; receiptRequestId = ''; operationMode = 'history'
+      movementHistory = await listItemMovements(itemId); saving = false; render()
+    } catch (reasonValue) {
+      saving = false
+      if (!(reasonValue instanceof SessionExpiredError)) { const el = root.querySelector<HTMLElement>('#receipt-error'); if (el) el.textContent = errorText(reasonValue) }
+    }
   }
 
   function formHtml() {

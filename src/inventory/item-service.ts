@@ -52,3 +52,35 @@ export const createItem = (input: InventoryItemInput): Promise<InventoryItem> =>
 export const editItem = (id: string, input: InventoryItemInput): Promise<InventoryItem> => apiRequest(`/inventory/items/${encodeURIComponent(id)}`, {
   method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(input),
 })
+export interface InventoryMovement {
+  id: string
+  itemId: string
+  type: string
+  direction: string
+  quantity: string | number
+  stockBefore: string | number
+  stockAfter: string | number
+  unitCostSnapshot: string | number
+  requestId: string
+  occurredAt: string
+  actor: string
+  reason: string | null
+  referenceType: string | null
+  referenceId: string | null
+  skuSnapshot: string
+  itemNameSnapshot: string
+  unitNameSnapshot: string
+  unitSymbolSnapshot: string
+}
+
+export interface InventoryReceiptInput {
+  requestId: string
+  quantity: string
+  unitCost: string
+  reason: string
+}
+
+export const receiveItemStock = (id: string, input: InventoryReceiptInput): Promise<InventoryMovement> => apiRequest(`/inventory/items/${encodeURIComponent(id)}/receipts`, {
+  method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(input),
+})
+export const listItemMovements = (id: string): Promise<InventoryMovement[]> => apiRequest(`/inventory/items/${encodeURIComponent(id)}/movements`)
