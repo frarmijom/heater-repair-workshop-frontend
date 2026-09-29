@@ -1217,3 +1217,29 @@ body::before {
 .work-orders-module #detail-actions .order-form__actions > :is(form, fieldset, section) { flex-basis: 100%; min-width: 0; max-width: 100%; }
 .work-orders-module #detail-actions button.work-orders-secondary-action { color: var(--ui-accent); background: var(--ui-surface); }
 .work-orders-module #detail-actions button.work-orders-secondary-action:hover { color: var(--ui-navy); background: var(--ui-background); }
+
+/* I1 inventory catalogs reuse the workshop surfaces and controls. */
+.catalog-tabs, .catalog-heading, .catalog-row-actions { display: flex; align-items: center; flex-wrap: wrap; gap: .75rem; }
+.catalog-tabs { margin-bottom: 1rem; }
+.catalog-tabs a { padding: .65rem 1rem; min-height: 44px; border: 1px solid var(--ui-border); border-radius: var(--ui-radius); }
+.catalog-tabs a[aria-current="page"] { color: white; background: var(--ui-accent); }
+.catalog-heading { justify-content: space-between; margin-bottom: 1rem; }
+.catalog-table { width: 100%; table-layout: fixed; border-collapse: collapse; text-align: left; }
+.catalog-table th, .catalog-table td { padding: .75rem; border-bottom: 1px solid var(--ui-border); overflow-wrap: anywhere; }
+.catalog-table thead { background: var(--ui-background); }
+.catalog-table .catalog-row-actions { align-items: stretch; }
+.catalog-state { font-size: .75rem; font-weight: 650; }
+#catalog-form { display: grid; gap: 1rem; max-width: 40rem; }
+#catalog-form input:not([type="checkbox"]) { width: 100%; min-height: 44px; }
+.catalog-checkbox { display: flex; align-items: center; gap: .75rem; min-height: 44px; }
+.catalog-checkbox input { width: 1.25rem; height: 1.25rem; }
+.catalog-module small, .catalog-module [role="alert"] { color: #a23529; }
+.catalog-module [role="status"]:empty { margin: 0; }
+.catalog-module button, .catalog-tabs a { overflow-wrap: anywhere; max-width: 100%; }
+@media (max-width: 900px) {
+  .catalog-table, .catalog-table tbody { display: block; }
+  .catalog-table thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+  .catalog-table tr { display: grid; grid-template-columns: minmax(0, 1fr); border-bottom: 1px solid var(--ui-border); }
+  .catalog-table th, .catalog-table td { display: block; border: 0; padding: .5rem 0; min-width: 0; }
+  .catalog-table [data-label]::before { content: attr(data-label); display: block; color: var(--ui-text-secondary); font-size: .75rem; font-weight: 400; margin-bottom: .25rem; }
+}

@@ -1,3 +1,4 @@
+import { createCatalogModule } from './inventory/catalog-module.ts'
 import { workOrderActions, type WorkOrderAction } from './components/work-order-actions.ts'
 import './style.css'
 import { generatePageHeaderHtml } from './components/page-header.ts'
@@ -38,6 +39,7 @@ let collectionRevision = 0
 let renderedDetailOrder: WorkOrder | undefined
 const pendingWorkOrderActions = new Set<string>()
 let authenticated = false
+let inventoryModule: ReturnType<typeof createCatalogModule> | undefined
 let viewGeneration = 0
 let clockIntervalId: number | undefined
 const sidebarState = { compact: false }
@@ -269,6 +271,7 @@ function setupRepairSearch(): void {
 function renderWorkshop(): void {
   if (!authenticated) return
   renderApplicationContent(`
+    <section class="work-orders-module catalog-module" lang="es" data-destination="inventory" aria-labelledby="inventory-title" hidden></section>
     <section data-destination="dashboard" aria-labelledby="dashboard-title">
       ${generatePageHeaderHtml({ id: 'dashboard-title', title: 'Dashboard', description: 'Resumen general del taller de órdenes de trabajo', contextHtml: '<time id="workshop-clock" class="workshop__clock"></time>' })}
       <div id="dashboard-content"></div>
@@ -298,6 +301,8 @@ function renderWorkshop(): void {
     </section>
     <section class="work-order-detail work-orders-module" lang="es" data-destination="work-order-detail" aria-labelledby="work-order-detail-title" hidden></section>
   `)
+  inventoryModule?.dispose()
+  inventoryModule = createCatalogModule(appContainer.querySelector<HTMLElement>('[data-destination="inventory"]')!)
   startClock()
   setupWorkOrderForm(appContainer, addWorkOrder)
   setupRepairSearch()
@@ -306,6 +311,13 @@ function renderWorkshop(): void {
 
 async function loadDestination(focusHeading = false): Promise<void> {
   const destination = selectedDestination()
+  if (destination === 'inventory') {
+    const loading = inventoryModule?.show(window.location.hash === '#inventory/units' ? 'units' : 'categories')
+    updateShellDestination(appContainer, focusHeading)
+    await loading
+    if (authenticated && selectedDestination() === 'inventory') updateShellDestination(appContainer, focusHeading)
+    return
+  }
   const needsCollection = destination === 'dashboard' || (destination === 'work-order-detail' && !workOrders.some(order => order.id === selectedWorkOrderId()))
   updateWorkOrderDetail()
   updateShellDestination(appContainer, focusHeading)
@@ -480,6 +492,8 @@ function updateWorkOrderDetail(): void {
 }
 
 function showLogin(message = ''): void {
+  inventoryModule?.dispose()
+  inventoryModule = undefined
   disposeSidebar?.()
   disposeSidebar = undefined
   sidebarState.compact = false

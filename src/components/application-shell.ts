@@ -22,7 +22,7 @@ export function generateApplicationShellHtml(content: string): string {
           </section>
           <section aria-labelledby="sidebar-inventory">
             <h2 id="sidebar-inventory">INVENTARIO</h2>
-            <button type="button" disabled><svg class="sidebar-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true" focusable="false"><path d="m3 7 9-4 9 4v12l-9 3-9-3V7Zm0 0 9 4 9-4M12 11v11"/></svg><span class="sidebar-label">Repuestos</span> <small>Próximamente</small></button>
+            <a href="#inventory/categories"><svg class="sidebar-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true" focusable="false"><path d="m3 7 9-4 9 4v12l-9 3-9-3V7Zm0 0 9 4 9-4M12 11v11"/></svg><span class="sidebar-label">Inventario</span></a>
           </section>
           <section aria-labelledby="sidebar-management">
             <h2 id="sidebar-management">GESTIÓN</h2>
@@ -59,6 +59,7 @@ export function selectedWorkOrderId(): string | null {
 }
 
 export function selectedDestination(): string {
+  if (['#inventory', '#inventory/categories', '#inventory/units'].includes(window.location.hash)) return 'inventory'
   if (window.location.hash === '#work-orders/new') return 'work-order-new'
   if (window.location.hash === '#work-orders/search') return 'work-order-search'
   if (selectedWorkOrderId() !== null) return 'work-order-detail'
@@ -71,7 +72,7 @@ export function updateShellDestination(root: HTMLElement, focusHeading = false):
     window.history.replaceState(null, '', '#dashboard')
   }
   root.querySelectorAll<HTMLAnchorElement>('.app-shell__nav a').forEach(link => {
-    if (link.hash === `#${destination === 'dashboard' ? 'dashboard' : 'work-orders'}`) link.setAttribute('aria-current', 'page')
+    if (link.hash === `#${destination === 'inventory' ? 'inventory/categories' : destination === 'dashboard' ? 'dashboard' : 'work-orders'}`) link.setAttribute('aria-current', 'page')
     else link.removeAttribute('aria-current')
   })
   root.querySelectorAll<HTMLElement>('[data-destination]').forEach(panel => {

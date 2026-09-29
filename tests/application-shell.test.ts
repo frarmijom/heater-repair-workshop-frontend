@@ -21,6 +21,7 @@ beforeEach(() => {
     if (url === '/api/auth/session') return json({ email: 'tech@example.test' })
     if (url === '/api/auth/csrf') return json({ headerName: 'X-CSRF-TOKEN', token: 'test-token' })
     if (url === '/api/auth/logout') return new Response(null, { status: 204 })
+    if (url.startsWith('/api/inventory/')) return json([])
     if (url === '/api/work-orders' && init.method === 'POST') return json({ ...order, ...JSON.parse(init.body as string), id: 'order-2' })
     if (url === '/api/work-orders') return json([order])
     if (url.endsWith('/start')) return json({ ...order, status: 'IN_PROGRESS', diagnosis: 'Replace valve' })
@@ -105,14 +106,26 @@ describe('authenticated application shell', () => {
     expect(active()).toBe('Órdenes de trabajo')
   })
 
+  it('opens inventory catalogs through the authenticated shell and switches to units', async () => {
+    await startup()
+    document.querySelector<HTMLAnchorElement>('.app-shell__nav a[href="#inventory/categories"]')!.click()
+    await vi.waitFor(() => expect(panel('inventory').querySelector('#catalog-list-title')?.textContent).toBe('Categorías'))
+    expect(panel('inventory').hidden).toBe(false)
+    expect(active()).toContain('Inventario')
+    panel('inventory').querySelector<HTMLAnchorElement>('a[href="#inventory/units"]')!.click()
+    await vi.waitFor(() => expect(panel('inventory').querySelector('#catalog-list-title')?.textContent).toBe('Unidades de medida'))
+    expect(panel('inventory').textContent).toContain('No hay registros')
+    expect(fetchMock.mock.calls.some(([url]) => url === '/api/inventory/units')).toBe(true)
+  })
+
   it('groups future modules without introducing routes or focusable disabled controls', async () => {
     await startup()
     const sidebar = document.querySelector('.app-sidebar')!
     expect(sidebar.querySelector('.app-shell__brand')?.textContent).toBe('Heater RepairWorkshop')
-    expect([...sidebar.querySelectorAll('nav a')].map(a => a.getAttribute('href'))).toEqual(['#dashboard', '#work-orders'])
+    expect([...sidebar.querySelectorAll('nav a')].map(a => a.getAttribute('href'))).toEqual(['#dashboard', '#work-orders', '#inventory/categories'])
     for (const [id, labels] of Object.entries({
       'sidebar-operation': ['Órdenes de trabajo', 'Clientes'],
-      'sidebar-inventory': ['Repuestos'],
+      'sidebar-inventory': ['Inventario'],
       'sidebar-management': ['Reportes'],
     })) {
       const section = sidebar.querySelector(`section[aria-labelledby="${id}"]`)!
@@ -120,7 +133,7 @@ describe('authenticated application shell', () => {
       for (const label of labels) expect(section.textContent).toContain(label)
     }
     const future = [...sidebar.querySelectorAll<HTMLButtonElement>('nav button')]
-    expect(future.map(button => button.querySelector('.sidebar-label')?.textContent)).toEqual(['Clientes', 'Repuestos', 'Reportes', 'Configuración'])
+    expect(future.map(button => button.querySelector('.sidebar-label')?.textContent)).toEqual(['Clientes', 'Reportes', 'Configuración'])
     const hash = location.hash
     for (const button of future) {
       expect(button.disabled).toBe(true)
@@ -289,7 +302,7 @@ describe('authenticated application shell', () => {
     expect(skip.tabIndex).toBe(0)
     expect(skip.hasAttribute('href')).toBe(false)
     expect(Array.from(document.querySelectorAll<HTMLAnchorElement>('.app-shell__nav a'), link => link.hash))
-      .toEqual(['#dashboard', '#work-orders'])
+      .toEqual(['#dashboard', '#work-orders', '#inventory/categories'])
     const historyLength = history.length
     skip.focus()
     expect(document.activeElement).toBe(skip)
