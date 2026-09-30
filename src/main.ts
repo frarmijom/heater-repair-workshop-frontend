@@ -142,7 +142,7 @@ async function addWorkOrder(payload: WorkOrderFormPayload): Promise<void> {
   try {
     const createdOrder = await createWorkOrder(payload)
     if (!authenticated || generation !== viewGeneration) return
-    workOrders = [...workOrders, createdOrder]
+    workOrders = [createdOrder, ...workOrders]
     collectionRevision++
     refreshDataViews()
     appContainer.querySelector<HTMLElement>('#work-order-action-status')!.textContent = 'Orden de trabajo creada correctamente.'
@@ -180,7 +180,7 @@ async function ensureCollection(): Promise<boolean> {
       const orders = await loadWorkOrders()
       if (!authenticated || generation !== viewGeneration) return false
       workOrders = revision === collectionRevision ? orders : [
-        ...orders.filter(order => !workOrders.some(current => current.id === order.id)), ...workOrders,
+        ...workOrders, ...orders.filter(order => !workOrders.some(current => current.id === order.id)),
       ]
       collectionLoaded = true
       return true

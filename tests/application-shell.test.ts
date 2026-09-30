@@ -641,6 +641,7 @@ describe('I5 asynchronous route safeguards', () => {
     await vi.waitFor(() => expect(panel('work-order-detail').textContent).toContain('Nuevo cliente'))
     resolveOrders!(json([order]))
     await vi.waitFor(() => expect(document.querySelector('#visible-order-count')?.textContent).toBe('2 órdenes de trabajo'))
+    expect(document.querySelector('.work-order-results tbody tr')?.getAttribute('data-order-id')).toBe('order-2')
     expect(panel('work-order-detail').textContent).toContain('Nuevo cliente')
     expect(document.querySelector('[data-kpi=total] dd')?.textContent).toBe('2')
   })
