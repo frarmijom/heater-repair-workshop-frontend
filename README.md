@@ -117,3 +117,11 @@ Historical orders display their `LEGACY` provenance. Historical work already in
 progress can complete without inventing approval; new `V1` repairs cannot use this
 exception. The backend migration must be applied before starting the updated API;
 see the backend `docs/WORK-ORDERS-V1.md` runbook. No deployment is part of this change.
+
+## HITO 04 — Inventory catalogs (I1)
+
+The sidebar Inventory entry opens `#inventory/categories`; `#inventory/units`
+manages units and their decimal policy. Both catalogs support create/edit and
+activation/deactivation with session/CSRF protection. Stale edits require refreshing
+the list before editing again. Apply the backend I1 catalog migration before use;
+see the backend `docs/INVENTORY-I1.md`. Items and stock are outside I1.
