@@ -1,6 +1,6 @@
 import { escapeHtml } from '../components/work-order-card.ts'
 import { ApiRequestError, SessionExpiredError } from '../services/api.ts'
-import { adjustItemStock, createItem, editItem, listItemCatalog, listItems, listItemMovements, receiveItemStock, reverseInventoryMovement, type InventoryCatalogOption, type InventoryItem, type InventoryItemInput, type InventoryMovement } from './item-service.ts'
+import { adjustItemStock, createItem, editItem, getItemBom, listItemCatalog, listItems, listItemMovements, receiveItemStock, replaceItemBom, reverseInventoryMovement, type InventoryCatalogOption, type InventoryItem, type InventoryItemInput, type InventoryKitComponent, type InventoryMovement } from './item-service.ts'
 
 type ItemFilters = { query: string; state: 'all' | 'active' | 'inactive'; category: string; lowStock: boolean }
 
@@ -22,6 +22,8 @@ export function createInventoryItemModule(root: HTMLElement) {
   let receiptRequestId = ''
   let adjustmentRequestId = ''
   let reversing: InventoryMovement | undefined
+  let bomEditing: InventoryItem | undefined
+  let bomComponents: InventoryKitComponent[] = []
   let reversalRequestId = ''
   let message = ''
   let error = ''
@@ -58,7 +60,7 @@ export function createInventoryItemModule(root: HTMLElement) {
       target.querySelector('#items-empty-create')?.addEventListener('click', () => openForm())
       return
     }
-    target.innerHTML = `<div class="inventory-items-table-wrap"><table class="inventory-items-table"><caption class="dashboard-sr-only">Artículos del inventario</caption><thead><tr><th scope="col">SKU</th><th scope="col">Artículo</th><th scope="col">Categoría</th><th scope="col">Unidad</th><th scope="col">Stock actual</th><th scope="col">Stock mínimo</th><th scope="col">Costo referencia</th><th scope="col">Estado</th><th scope="col">Acciones</th></tr></thead><tbody>${visible.map(item => `<tr><td data-label="SKU"><strong>${escapeHtml(item.sku)}</strong></td><th scope="row" data-label="Artículo">${escapeHtml(item.name)}${item.lowStock ? '<span class="inventory-low-stock" role="status">Stock bajo</span>' : ''}</th><td data-label="Categoría">${escapeHtml(item.category.name)}</td><td data-label="Unidad">${escapeHtml(item.unit.name)} (${escapeHtml(item.unit.symbol)})</td><td data-label="Stock actual">${escapeHtml(String(item.stockCurrent))}</td><td data-label="Stock mínimo">${escapeHtml(String(item.stockMinimum))}</td><td data-label="Costo referencia">${escapeHtml(String(item.referenceUnitCost))}</td><td data-label="Estado"><span class="catalog-state">${item.active ? 'ACTIVO' : 'INACTIVO'}</span></td><td data-label="Acciones"><div class="catalog-row-actions"><button type="button" data-receipt="${escapeHtml(item.id)}" ${!item.active || saving ? 'disabled' : ''}>Entrada</button><button type="button" data-adjust="${escapeHtml(item.id)}" ${!item.active || saving ? 'disabled' : ''}>Ajustar</button><button type="button" data-history="${escapeHtml(item.id)}">Historial</button><button type="button" data-edit="${escapeHtml(item.id)}" aria-label="Editar ${escapeHtml(item.name)}" ${saving ? 'disabled' : ''}>Editar</button><button type="button" data-toggle="${escapeHtml(item.id)}" aria-label="${item.active ? 'Desactivar' : 'Reactivar'} ${escapeHtml(item.name)}" ${saving ? 'disabled' : ''}>${item.active ? 'Desactivar' : 'Reactivar'}</button></div></td></tr>`).join('')}</tbody></table></div>`
+    target.innerHTML = `<div class="inventory-items-table-wrap"><table class="inventory-items-table"><caption class="dashboard-sr-only">Artículos del inventario</caption><thead><tr><th scope="col">SKU</th><th scope="col">Artículo</th><th scope="col">Tipo</th><th scope="col">Categoría</th><th scope="col">Unidad</th><th scope="col">Stock actual</th><th scope="col">Stock mínimo</th><th scope="col">Costo referencia</th><th scope="col">Estado</th><th scope="col">Acciones</th></tr></thead><tbody>${visible.map(item => `<tr><td data-label="SKU"><strong>${escapeHtml(item.sku)}</strong></td><th scope="row" data-label="Artículo">${escapeHtml(item.name)}${item.lowStock ? '<span class="inventory-low-stock" role="status">Stock bajo</span>' : ''}</th><td data-label="Tipo"><span class="catalog-state">${item.itemType === 'KIT' ? 'KIT' : 'ARTÍCULO'}</span></td><td data-label="Categoría">${escapeHtml(item.category.name)}</td><td data-label="Unidad">${escapeHtml(item.unit.name)} (${escapeHtml(item.unit.symbol)})</td><td data-label="Stock actual">${escapeHtml(String(item.stockCurrent))}</td><td data-label="Stock mínimo">${escapeHtml(String(item.stockMinimum))}</td><td data-label="Costo referencia">${escapeHtml(String(item.referenceUnitCost))}</td><td data-label="Estado"><span class="catalog-state">${item.active ? 'ACTIVO' : 'INACTIVO'}</span></td><td data-label="Acciones"><div class="catalog-row-actions"><button type="button" data-receipt="${escapeHtml(item.id)}" ${!item.active || saving ? 'disabled' : ''}>Entrada</button><button type="button" data-adjust="${escapeHtml(item.id)}" ${!item.active || saving ? 'disabled' : ''}>Ajustar</button><button type="button" data-history="${escapeHtml(item.id)}">Historial</button>${item.itemType === 'KIT' ? `<button type="button" data-bom="${escapeHtml(item.id)}">Composición</button>` : ''}<button type="button" data-edit="${escapeHtml(item.id)}" aria-label="Editar ${escapeHtml(item.name)}" ${saving ? 'disabled' : ''}>Editar</button><button type="button" data-toggle="${escapeHtml(item.id)}" aria-label="${item.active ? 'Desactivar' : 'Reactivar'} ${escapeHtml(item.name)}" ${saving ? 'disabled' : ''}>${item.active ? 'Desactivar' : 'Reactivar'}</button></div></td></tr>`).join('')}</tbody></table></div>`
     target.querySelectorAll<HTMLButtonElement>('[data-receipt]').forEach(button => button.addEventListener('click', () => {
       operating = items.find(item => item.id === button.dataset.receipt)
       operationMode = 'receipt'; receiptRequestId = ''; movementHistory = []; render()
@@ -72,6 +74,10 @@ export function createInventoryItemModule(root: HTMLElement) {
     target.querySelectorAll<HTMLButtonElement>('[data-history]').forEach(button => button.addEventListener('click', () => {
       const item = items.find(value => value.id === button.dataset.history)
       if (item) void openHistory(item)
+    }))
+    target.querySelectorAll<HTMLButtonElement>('[data-bom]').forEach(button => button.addEventListener('click', () => {
+      const item = items.find(value => value.id === button.dataset.bom)
+      if (item) void openBom(item)
     }))
     target.querySelectorAll<HTMLButtonElement>('[data-edit]').forEach(button => button.addEventListener('click', () => {
       editing = items.find(item => item.id === button.dataset.edit)
@@ -99,7 +105,7 @@ export function createInventoryItemModule(root: HTMLElement) {
   }
 
   function render() {
-    root.innerHTML = `<header class="app-shell__page-header"><div><h1 id="inventory-title" tabindex="-1">Artículos</h1><p>Existencias y datos de inventario del taller</p></div><button id="item-new" type="button" ${saving || loading ? 'disabled' : ''}>Nuevo artículo</button></header>${nav()}<p id="item-status" role="status">${escapeHtml(message)}</p><section class="work-orders-surface inventory-items-surface" aria-labelledby="items-heading"><div class="catalog-heading"><h2 id="items-heading">Listado de artículos</h2><button id="items-reload" type="button" ${saving || loading ? 'disabled' : ''}>Actualizar listado</button></div><form id="item-filters" class="inventory-item-filters"><div class="form-field"><label for="item-search">Buscar SKU o nombre</label><input id="item-search" type="search" value="${escapeHtml(filters.query)}"></div><div class="form-field"><label for="item-state">Estado</label><select id="item-state"><option value="all" ${filters.state === 'all' ? 'selected' : ''}>Todos</option><option value="active" ${filters.state === 'active' ? 'selected' : ''}>Activos</option><option value="inactive" ${filters.state === 'inactive' ? 'selected' : ''}>Inactivos</option></select></div><div class="form-field"><label for="item-category-filter">Categoría</label><select id="item-category-filter"><option value="all">Todas</option>${categories.map(category => `<option value="${escapeHtml(category.id)}" ${filters.category === category.id ? 'selected' : ''}>${escapeHtml(category.name)}</option>`).join('')}</select></div><label class="inventory-low-filter"><input id="item-low-stock" type="checkbox" ${filters.lowStock ? 'checked' : ''}> Solo stock bajo</label></form><div id="inventory-item-results" aria-live="polite"></div></section><div id="item-confirmation"></div><div id="item-operation-region">${operationHtml()}</div><div id="item-form-region">${formHtml()}</div>`
+    root.innerHTML = `<header class="app-shell__page-header"><div><h1 id="inventory-title" tabindex="-1">Artículos</h1><p>Existencias y datos de inventario del taller</p></div><button id="item-new" type="button" ${saving || loading ? 'disabled' : ''}>Nuevo artículo</button></header>${nav()}<p id="item-status" role="status">${escapeHtml(message)}</p><section class="work-orders-surface inventory-items-surface" aria-labelledby="items-heading"><div class="catalog-heading"><h2 id="items-heading">Listado de artículos</h2><button id="items-reload" type="button" ${saving || loading ? 'disabled' : ''}>Actualizar listado</button></div><form id="item-filters" class="inventory-item-filters"><div class="form-field"><label for="item-search">Buscar SKU o nombre</label><input id="item-search" type="search" value="${escapeHtml(filters.query)}"></div><div class="form-field"><label for="item-state">Estado</label><select id="item-state"><option value="all" ${filters.state === 'all' ? 'selected' : ''}>Todos</option><option value="active" ${filters.state === 'active' ? 'selected' : ''}>Activos</option><option value="inactive" ${filters.state === 'inactive' ? 'selected' : ''}>Inactivos</option></select></div><div class="form-field"><label for="item-category-filter">Categoría</label><select id="item-category-filter"><option value="all">Todas</option>${categories.map(category => `<option value="${escapeHtml(category.id)}" ${filters.category === category.id ? 'selected' : ''}>${escapeHtml(category.name)}</option>`).join('')}</select></div><label class="inventory-low-filter"><input id="item-low-stock" type="checkbox" ${filters.lowStock ? 'checked' : ''}> Solo stock bajo</label></form><div id="inventory-item-results" aria-live="polite"></div></section><div id="item-confirmation"></div><div id="item-operation-region">${operationHtml()}</div><div id="item-bom-region">${bomHtml()}</div><div id="item-form-region">${formHtml()}</div>`
     root.querySelector<HTMLButtonElement>('#item-new')!.addEventListener('click', () => openForm())
     root.querySelector<HTMLButtonElement>('#items-reload')!.addEventListener('click', () => { void load() })
     root.querySelector<HTMLInputElement>('#item-search')!.addEventListener('input', event => { filters.query = (event.currentTarget as HTMLInputElement).value; renderRows() })
@@ -114,6 +120,10 @@ export function createInventoryItemModule(root: HTMLElement) {
       const initial = root.querySelector<HTMLInputElement>('#item-initial-stock')
       if (initial) initial.step = selected?.allowsDecimal ? '0.001' : '1'
     })
+    root.querySelector<HTMLButtonElement>('#bom-add')?.addEventListener('click', () => { bomComponents.push({ componentItemId: '', quantity: '1' }); render(); root.querySelector<HTMLSelectElement>('[data-bom-component]:last-of-type')?.focus() })
+    root.querySelectorAll<HTMLButtonElement>('[data-bom-remove]').forEach(button => button.addEventListener('click', () => { bomComponents.splice(Number(button.dataset.bomRemove), 1); render() }))
+    root.querySelector<HTMLButtonElement>('#bom-close')?.addEventListener('click', () => { bomEditing = undefined; bomComponents = []; render() })
+    root.querySelector<HTMLFormElement>('#bom-form')?.addEventListener('submit', event => { event.preventDefault(); void submitBom() })
     root.querySelector<HTMLFormElement>('#receipt-form')?.addEventListener('submit', event => { event.preventDefault(); void submitReceipt() })
     root.querySelector<HTMLFormElement>('#receipt-form')?.addEventListener('input', () => { receiptRequestId = '' })
     root.querySelector<HTMLFormElement>('#adjustment-form')?.addEventListener('submit', event => { event.preventDefault(); void submitAdjustment() })
@@ -128,6 +138,49 @@ export function createInventoryItemModule(root: HTMLElement) {
     root.querySelector<HTMLButtonElement>('#operation-close')?.addEventListener('click', () => { operating = undefined; operationMode = undefined; movementHistory = []; reversing = undefined; render() })
     renderRows()
     renderConfirmation()
+  }
+
+  function bomHtml() {
+    if (!bomEditing) return ''
+    const candidates = items.filter(item => item.active && item.id !== bomEditing?.id && item.itemType !== 'KIT')
+    const rows = bomComponents.map((component, index) => `<div class="inventory-bom-row">
+      <div class="form-field"><label for="bom-component-${index}">Componente ${index + 1}</label><select id="bom-component-${index}" data-bom-component="${index}" required><option value="">Selecciona un artículo</option>${candidates.map(item => `<option value="${escapeHtml(item.id)}" ${item.id === component.componentItemId ? 'selected' : ''}>${escapeHtml(item.sku)} · ${escapeHtml(item.name)}</option>`).join('')}</select></div>
+      <div class="form-field"><label for="bom-quantity-${index}">Cantidad</label><input id="bom-quantity-${index}" data-bom-quantity="${index}" type="number" min="0.001" step="0.001" value="${escapeHtml(String(component.quantity))}" required></div>
+      <button type="button" data-bom-remove="${index}" aria-label="Quitar componente ${index + 1}">Quitar</button>
+    </div>`).join('')
+    return `<section class="work-orders-surface inventory-item-form-surface inventory-bom-surface" aria-labelledby="bom-heading"><div class="catalog-heading"><div><h2 id="bom-heading">Composición · ${escapeHtml(bomEditing.name)}</h2><p>${escapeHtml(bomEditing.sku)} · Define los artículos y cantidades que componen este kit.</p></div><button id="bom-close" type="button">Cerrar</button></div><p class="inventory-operation-note">Guardar la composición no modifica las existencias. Los movimientos de stock se registran por separado.</p><form id="bom-form" novalidate>${rows || '<p class="inventory-bom-empty">Este kit aún no tiene componentes.</p>'}<div class="order-form__actions"><button id="bom-add" type="button">Agregar componente</button><button type="submit" ${saving ? 'disabled' : ''}>${saving ? 'Guardando…' : 'Guardar composición'}</button></div><p id="bom-error" role="alert"></p></form></section>`
+  }
+
+  async function openBom(item: InventoryItem) {
+    bomEditing = item; bomComponents = []; render()
+    try {
+      const bom = await getItemBom(item.id)
+      if (!bomEditing || bomEditing.id !== item.id) return
+      bomComponents = bom.components.map(component => ({ ...component, quantity: String(component.quantity) }))
+      render()
+    } catch (reason) {
+      if (!(reason instanceof SessionExpiredError)) { message = errorText(reason); bomEditing = undefined; render() }
+    }
+  }
+
+  async function submitBom() {
+    if (!bomEditing || saving) return
+    const components = [...root.querySelectorAll<HTMLSelectElement>('[data-bom-component]')].map((select, index) => ({
+      componentItemId: select.value,
+      quantity: root.querySelector<HTMLInputElement>(`[data-bom-quantity="${index}"]`)!.value,
+    }))
+    const duplicate = components.some((component, index) => component.componentItemId && components.findIndex(value => value.componentItemId === component.componentItemId) !== index)
+    const invalid = components.some(component => !component.componentItemId || !decimalValid(String(component.quantity), 3) || Number(component.quantity) <= 0)
+    if (duplicate || invalid) { root.querySelector<HTMLElement>('#bom-error')!.textContent = duplicate ? 'Un componente no puede repetirse en el kit.' : 'Selecciona cada componente e ingresa una cantidad válida mayor que cero.'; return }
+    saving = true
+    try {
+      const saved = await replaceItemBom(bomEditing.id, components)
+      bomComponents = saved.components.map(component => ({ ...component, quantity: String(component.quantity) }))
+      message = 'Composición del kit guardada.'; saving = false; render()
+    } catch (reason) {
+      saving = false
+      if (!(reason instanceof SessionExpiredError)) { render(); root.querySelector<HTMLElement>('#bom-error')!.textContent = errorText(reason) }
+    }
   }
 
   function operationHtml() {
@@ -234,7 +287,7 @@ export function createInventoryItemModule(root: HTMLElement) {
       <form id="item-form" novalidate aria-busy="${saving}">
         <div class="inventory-item-form-grid">
           <div class="form-field"><label for="item-sku">SKU *</label><input id="item-sku" maxlength="64" required value="${escapeHtml(editing?.sku ?? '')}" aria-describedby="item-sku-error"><small id="item-sku-error"></small></div>
-          <div class="form-field"><label for="item-name">Nombre *</label><input id="item-name" maxlength="160" required value="${escapeHtml(editing?.name ?? '')}" aria-describedby="item-name-error"><small id="item-name-error"></small></div>
+          <div class="form-field"><label for="item-type">Tipo *</label><select id="item-type" ${editing ? 'disabled' : ''}><option value="STANDARD" ${editing?.itemType !== 'KIT' ? 'selected' : ''}>Artículo</option><option value="KIT" ${editing?.itemType === 'KIT' ? 'selected' : ''}>Kit</option></select><small>El tipo se define al crear el registro.</small></div><div class="form-field"><label for="item-name">Nombre *</label><input id="item-name" maxlength="160" required value="${escapeHtml(editing?.name ?? '')}" aria-describedby="item-name-error"><small id="item-name-error"></small></div>
           <div class="form-field"><label for="item-category">Categoría *</label><select id="item-category" required aria-describedby="item-category-error"><option value="">Selecciona una categoría</option>${categoriesHtml}</select><small id="item-category-error"></small></div>
           <div class="form-field"><label for="item-unit">Unidad *</label><select id="item-unit" required ${editing?.hasMovements ? 'disabled aria-describedby="item-unit-lock"' : 'aria-describedby="item-unit-error"'}><option value="">Selecciona una unidad</option>${unitsHtml}</select>${editing?.hasMovements ? '<small id="item-unit-lock">La unidad no puede modificarse porque el artículo ya posee movimientos.</small>' : '<small id="item-unit-error"></small>'}</div>
           <div class="form-field"><label for="item-description">Descripción</label><textarea id="item-description" maxlength="1000" rows="3">${escapeHtml(editing?.description ?? '')}</textarea></div>
@@ -312,6 +365,7 @@ export function createInventoryItemModule(root: HTMLElement) {
     }
     if (!editing) {
       payload.initialStock = initial
+      payload.itemType = root.querySelector<HTMLSelectElement>('#item-type')!.value as 'STANDARD' | 'KIT'
       creationRequestId ||= globalThis.crypto?.randomUUID?.() ?? `item-${Date.now()}-${Math.random().toString(36).slice(2)}`
       payload.requestId = creationRequestId
     } else payload.expectedVersion = editing.version

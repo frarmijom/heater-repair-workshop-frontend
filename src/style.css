@@ -1301,3 +1301,11 @@ body::before {
 .work-order-detail__equipment dt { font-weight: 600; }
 .work-order-detail__equipment dd { margin: .2rem 0 0; }
 @media (max-width: 700px) { .work-order-equipment, .work-order-detail__equipment dl { grid-template-columns: 1fr; } }
+
+/* HITO 07 / I2.3: kit composition (BOM). */
+.inventory-bom-surface { margin-top: 1rem; }
+.inventory-bom-row { display: grid; grid-template-columns: minmax(14rem, 2fr) minmax(8rem, 1fr) auto; gap: .75rem; align-items: end; padding: .75rem 0; border-bottom: 1px solid var(--ui-border); }
+.inventory-bom-row :is(select, input) { width: 100%; min-height: 44px; }
+.inventory-bom-row > button { min-height: 44px; }
+.inventory-bom-empty { color: var(--ui-text-secondary); }
+@media (max-width: 720px) { .inventory-bom-row { grid-template-columns: minmax(0, 1fr); } }

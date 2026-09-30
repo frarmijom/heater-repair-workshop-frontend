@@ -24,6 +24,7 @@ export interface InventoryItem {
   version: number
   createdAt: string
   updatedAt: string
+  itemType?: 'STANDARD' | 'KIT'
 }
 
 export interface InventoryItemInput {
@@ -38,6 +39,7 @@ export interface InventoryItemInput {
   requestId?: string
   active?: boolean
   expectedVersion?: number
+  itemType?: 'STANDARD' | 'KIT'
 }
 
 export const listItems = (): Promise<InventoryItem[]> => apiRequest('/inventory/items')
@@ -100,4 +102,12 @@ export const adjustItemStock = (id: string, input: InventoryAdjustmentInput): Pr
 })
 export const reverseInventoryMovement = (movementId: string, input: InventoryReversalInput): Promise<InventoryMovement> => apiRequest(`/inventory/items/movements/${encodeURIComponent(movementId)}/reversal`, {
   method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(input),
+})
+
+
+export interface InventoryKitComponent { componentItemId: string; quantity: string | number }
+export interface InventoryKitBom { kitItemId: string; components: InventoryKitComponent[] }
+export const getItemBom = (id: string): Promise<InventoryKitBom> => apiRequest(`/inventory/items/${encodeURIComponent(id)}/bom`)
+export const replaceItemBom = (id: string, components: InventoryKitComponent[]): Promise<InventoryKitBom> => apiRequest(`/inventory/items/${encodeURIComponent(id)}/bom`, {
+  method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ components }),
 })

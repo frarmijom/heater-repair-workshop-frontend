@@ -13,7 +13,7 @@ const item = (overrides: Partial<InventoryItem> = {}): InventoryItem => ({
   category: { id: category.id, name: category.name },
   unit: { id: wholeUnit.id, name: wholeUnit.name, symbol: wholeUnit.symbol, allowsDecimal: false },
   stockCurrent: '1.000', stockMinimum: '2.000', referenceUnitCost: '2.1250', lowStock: true,
-  active: true, hasMovements: true, version: 0,
+  active: true, hasMovements: true, version: 0, itemType: 'STANDARD',
   createdAt: '2026-09-29T12:00:00Z', updatedAt: '2026-09-29T12:00:00Z', ...overrides,
 })
 
@@ -54,10 +54,15 @@ beforeEach(() => {
         stockCurrent: String(payload.initialStock ?? '0'), stockMinimum: String(payload.stockMinimum ?? '0'),
         referenceUnitCost: String(payload.referenceUnitCost ?? '0'),
         lowStock: Number(payload.initialStock ?? 0) < Number(payload.stockMinimum ?? 0),
-        hasMovements: Number(payload.initialStock ?? 0) > 0,
+        hasMovements: Number(payload.initialStock ?? 0) > 0, itemType: payload.itemType === 'KIT' ? 'KIT' : 'STANDARD',
       })
       items.push(created)
       return json(created, 201)
+    }
+    if (/^\/api\/inventory\/items\/[^/]+\/bom$/.test(url) && !options.method) return json({ kitItemId: 'kit-1', components: [] })
+    if (/^\/api\/inventory\/items\/[^/]+\/bom$/.test(url) && options.method === 'PUT') {
+      const payload = JSON.parse(options.body as string) as { components: Array<{ componentItemId: string; quantity: string }> }
+      return json({ kitItemId: 'kit-1', components: payload.components })
     }
     if (url.startsWith('/api/inventory/items/') && options.method === 'PATCH') {
       const payload = JSON.parse(options.body as string) as Record<string, unknown>
@@ -197,6 +202,32 @@ describe('inventory items', () => {
     await vi.waitFor(() => expect(root.querySelector('tbody')?.textContent).toContain('ACTIVO'))
     expect(patchedPayloads[1]).toMatchObject({ active: true, expectedVersion: 1 })
     expect(fetchMock.mock.calls.some(([, options]) => options.method === 'DELETE')).toBe(false)
+  })
+
+  it('creates a kit and manages its BOM without stock operations', async () => {
+    items = [item({ id: 'component-1', sku: 'MEM-001', name: 'Membrana', stockCurrent: '8.000' })]
+    await module.show()
+    click('#item-new')
+    field('item-type', 'KIT')
+    field('item-sku', 'KIT-001')
+    field('item-name', 'Kit mantención')
+    field('item-category', category.id)
+    field('item-unit', wholeUnit.id)
+    submit()
+    await vi.waitFor(() => expect(root.textContent).toContain('Artículo creado correctamente.'))
+    expect(createdPayloads.at(-1)).toMatchObject({ itemType: 'KIT', initialStock: '0' })
+    expect(root.querySelector('tbody')?.textContent).toContain('KIT')
+    click('[data-bom]')
+    await vi.waitFor(() => expect(root.textContent).toContain('Este kit aún no tiene componentes.'))
+    expect(root.textContent).toContain('no modifica las existencias')
+    click('#bom-add')
+    field('bom-component-0', 'component-1')
+    field('bom-quantity-0', '2')
+    root.querySelector('#bom-form')!.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }))
+    await vi.waitFor(() => expect(root.textContent).toContain('Composición del kit guardada.'))
+    const put = fetchMock.mock.calls.find(([url, options]) => String(url).endsWith('/bom') && options.method === 'PUT')
+    expect(JSON.parse(put?.[1].body as string)).toEqual({ components: [{ componentItemId: 'component-1', quantity: '2' }] })
+    expect(fetchMock.mock.calls.some(([url]) => String(url).includes('/receipts') || String(url).includes('/adjustments'))).toBe(false)
   })
 
   it('shows retryable load errors and ignores responses after disposal', async () => {
