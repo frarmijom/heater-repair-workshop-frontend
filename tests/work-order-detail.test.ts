@@ -53,7 +53,7 @@ describe('repair detail and factual lifecycle', () => {
     const root = render({ ...order, id: text, customerName: text, customerContact: text, heaterBrand: text,
       heaterModel: text, reportedIssue: text, diagnosis: text })
     expect(root.querySelector('img')).toBeNull()
-    expect(root.textContent?.split(text)).toHaveLength(8)
+    expect(root.textContent?.split(text)).toHaveLength(10)
   })
   it('shows a safe missing-order message and a return link', () => {
     const root = render(undefined)

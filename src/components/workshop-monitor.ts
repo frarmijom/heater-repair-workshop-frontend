@@ -1,4 +1,4 @@
-import { WorkOrderStatus, type WorkOrder } from '../models/index.ts'
+import { WorkOrderStatus, workOrderEquipmentSummary, type WorkOrder } from '../models/index.ts'
 import { workOrderStatusPresentation } from './work-order-status.ts'
 import { escapeHtml } from './work-order-card.ts'
 import { formatWorkOrderDate, formatWorkOrderDateTime, formatReceptionElapsed } from '../formatters/work-order-time.ts'
@@ -74,7 +74,7 @@ export function generateWorkshopMonitorHtml(orders: readonly WorkOrder[], now = 
         <tbody>${attention.slice(0, 5).map(order => `<tr>
           <th scope="row" data-label="Orden">#${escapeHtml(order.id)}</th>
           <td data-label="Cliente">${escapeHtml(order.customerName)}</td>
-          <td data-label="Equipo">${escapeHtml(order.heaterBrand)} ${escapeHtml(order.heaterModel)}</td>
+          <td data-label="Equipo">${escapeHtml(workOrderEquipmentSummary(order))}</td>
           <td data-label="Estado"><span class="dashboard-state dashboard-tone--${workOrderStatusPresentation[order.status].modifier}">${workOrderStatusPresentation[order.status].label}</span></td>
           <td data-label="Tiempo desde recepción">${escapeHtml(formatReceptionElapsed(order, now) ?? 'No disponible')}</td>
           <td data-label="Acción">${link(order)}</td>

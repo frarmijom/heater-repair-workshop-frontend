@@ -9,6 +9,7 @@ import { generateWorkOrderCardHtml } from '../src/components/work-order-card.ts'
 import { summarizeDashboard, weeklyReceptions } from '../src/dashboard/dashboard-data.ts'
 
 const base = { customerName: 'Juan Pérez', customerContact: '+56912345678', heaterBrand: 'Junkers', heaterModel: 'WR11', serviceType: ServiceType.REPAIR, reportedIssue: 'No enciende' }
+const equipment = { brand: base.heaterBrand, model: base.heaterModel, capacity: null, serialNumber: null, notes: null, position: 1 }
 const order: WorkOrder = { ...base, id: 'order-1', status: WorkOrderStatus.RECEIVED, diagnosis: null, receivedAt: '2026-09-26T12:00:00Z', completedAt: null }
 let create: ReturnType<typeof vi.fn>
 const phone = () => document.querySelector<HTMLInputElement>('#customer-phone')!
@@ -42,7 +43,7 @@ describe('Chilean mobile intake', () => {
     expect(document.querySelector('label[for="customer-phone"]')).not.toBeNull()
     for (const id of phone().getAttribute('aria-describedby')!.split(' ')) expect(document.getElementById(id)).not.toBeNull()
     submit()
-    expect(create).toHaveBeenCalledExactlyOnceWith(base)
+    expect(create).toHaveBeenCalledExactlyOnceWith({ ...base, equipments: [equipment] })
   })
   it.each(['', '1234', '1234567', '123456789', 'abcdefgh', '1234a678', '+56912345678', '56912345678', ' 12345678', '12345678 ', '１２３４５６７８'])('rejects editable phone value %j without trimming or prefix normalization', value => {
     phone().value = value
@@ -84,7 +85,7 @@ describe('service selection and conditional issue', () => {
     expect(issue().required).toBe(false)
     expect(document.querySelector('#reported-issue-label')?.textContent).toBe('Observaciones (opcional)')
     submit()
-    expect(create).toHaveBeenCalledExactlyOnceWith({ ...base, serviceType: ServiceType.MAINTENANCE, reportedIssue: value.trim() })
+    expect(create).toHaveBeenCalledExactlyOnceWith({ ...base, equipments: [equipment], serviceType: ServiceType.MAINTENANCE, reportedIssue: value.trim() })
   })
   it('updates existing validation in both directions without erasing the entered text', () => {
     issue().value = ''
@@ -128,7 +129,7 @@ describe('service selection and conditional issue', () => {
     issue().value = 'Revisión preventiva'
     submit(); submit()
     expect(create).toHaveBeenCalledTimes(1)
-    expect(create.mock.calls[0]![0]).toEqual({ ...base, serviceType: ServiceType.MAINTENANCE, reportedIssue: 'Revisión preventiva' })
+    expect(create.mock.calls[0]![0]).toEqual({ ...base, equipments: [equipment], serviceType: ServiceType.MAINTENANCE, reportedIssue: 'Revisión preventiva' })
     reject(new Error('No se pudo completar la solicitud.'))
     await vi.waitFor(() => expect(document.querySelector<HTMLButtonElement>('button[type="submit"]')!.disabled).toBe(false))
     expect(radio(ServiceType.MAINTENANCE).checked).toBe(true)
@@ -200,7 +201,7 @@ describe('phone paste integrity', () => {
     phone().dispatchEvent(new Event('input', { bubbles: true }))
     expect(phone().getAttribute('aria-invalid')).toBe('false')
     submit()
-    expect(create).toHaveBeenCalledExactlyOnceWith({ ...base, customerContact: '+56987654321' })
+    expect(create).toHaveBeenCalledExactlyOnceWith({ ...base, customerContact: '+56987654321', equipments: [equipment] })
   })
   it('lets native paste accept eight digits without changing or normalizing them', () => {
     expect(paste('87654321').defaultPrevented).toBe(false)

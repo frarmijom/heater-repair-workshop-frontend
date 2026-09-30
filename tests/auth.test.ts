@@ -169,7 +169,7 @@ describe('AUTH-01 browser flow', () => {
     location.hash = '#work-orders/new'
     await vi.waitFor(() => expect(document.querySelector<HTMLElement>('[data-destination="work-order-new"]')!.hidden).toBe(false))
     for (const [id, value] of Object.entries({ 'customer-name': 'Late order', 'customer-phone': '11112222',
-      'heater-brand': 'Bosch', 'heater-model': 'Therm', 'reported-issue': 'Turns off' })) {
+      'equipment-0-brand': 'Bosch', 'equipment-0-model': 'Therm', 'reported-issue': 'Turns off' })) {
       document.querySelector<HTMLInputElement>('#' + id)!.value = value
     }
     document.querySelector('#work-order-form')!.dispatchEvent(new Event('submit', { cancelable: true }))

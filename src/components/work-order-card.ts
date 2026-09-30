@@ -1,7 +1,7 @@
 import { availableWorkOrderActions, workOrderActions } from './work-order-actions.ts'
 import { serviceTypePresentation } from './service-type-presentation.ts'
 import { WorkOrderStatus } from '../models/index.ts'
-import type { WorkOrder } from '../models/index.ts'
+import { workOrderEquipmentSummary, type WorkOrder } from '../models/index.ts'
 
 import { workOrderStatusPresentation } from './work-order-status.ts'
 import { formatWorkOrderDate, formatWorkOrderDateTime } from '../formatters/work-order-time.ts'
@@ -38,7 +38,7 @@ export function generateWorkOrderCardHtml(order: WorkOrder): string {
       <header class="work-order-card__header">
         <p class="work-order-card__id">Orden de trabajo #${escapeHtml(order.id)}</p>
         <p class="work-order-card__service">Tipo de servicio: ${service.label}</p>
-        <h3>${escapeHtml(order.heaterBrand)} ${escapeHtml(order.heaterModel)}</h3>
+        <h3>${escapeHtml(workOrderEquipmentSummary(order))}</h3>
         <p class="work-order-card__customer">
           ${escapeHtml(order.customerName)} · ${escapeHtml(order.customerContact)}
         </p>

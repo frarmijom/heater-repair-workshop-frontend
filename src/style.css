@@ -1287,3 +1287,17 @@ body::before {
 .inventory-reversal-form h3 { margin: 0; }
 .inventory-reversal-form .form-field input { width: 100%; min-height: 44px; }
 .inventory-reversal-form [role="alert"], .inventory-reversal-form small { color: #a23529; }
+
+/* HITO 07 — multi-equipment work orders */
+.work-order-equipment-group { grid-column: 1 / -1; }
+#work-order-equipment-list { display: grid; gap: 1rem; margin: .75rem 0; }
+.work-order-equipment { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .9rem 1rem; padding: 1rem; border: 1px solid var(--border-color, #d9dee7); border-radius: .75rem; background: rgba(255,255,255,.45); }
+.work-order-equipment__header { grid-column: 1 / -1; display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
+.work-order-equipment__header h3 { margin: 0; }
+.work-order-detail__equipments { display: grid; gap: 1rem; }
+.work-order-detail__equipment { padding: 1rem; border: 1px solid var(--border-color, #d9dee7); border-radius: .75rem; }
+.work-order-detail__equipment h3 { margin-top: 0; }
+.work-order-detail__equipment dl { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .75rem 1rem; }
+.work-order-detail__equipment dt { font-weight: 600; }
+.work-order-detail__equipment dd { margin: .2rem 0 0; }
+@media (max-width: 700px) { .work-order-equipment, .work-order-detail__equipment dl { grid-template-columns: 1fr; } }

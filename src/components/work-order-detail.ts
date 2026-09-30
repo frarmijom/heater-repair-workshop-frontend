@@ -1,5 +1,5 @@
 import { serviceTypePresentation } from './service-type-presentation.ts'
-import { ServiceType, WorkOrderStatus, type WorkOrder } from '../models/index.ts'
+import { ServiceType, WorkOrderStatus, workOrderEquipments, workOrderEquipmentSummary, type WorkOrder } from '../models/index.ts'
 import { workOrderStatusPresentation } from './work-order-status.ts'
 import { escapeHtml } from './work-order-card.ts'
 import { formatWorkOrderDateTime } from '../formatters/work-order-time.ts'
@@ -9,6 +9,8 @@ export function generateWorkOrderDetailHtml(order: WorkOrder | undefined): strin
   const back = '<nav class="work-orders-breadcrumb" aria-label="Ruta de navegación"><a href="#work-orders">Volver a Órdenes de trabajo</a></nav>'
   if (!order) return `${back}<h1 id="work-order-detail-title" tabindex="-1">Orden de trabajo no encontrada</h1><p>No se encontró esta orden de trabajo.</p>`
   const service = serviceTypePresentation[order.serviceType]
+  const equipments = workOrderEquipments(order)
+  const equipmentsHtml = equipments.map(equipment => `<article class="work-order-detail__equipment"><h3>Calefont ${equipment.position}</h3><dl><div><dt>Marca</dt><dd>${escapeHtml(equipment.brand)}</dd></div><div><dt>Modelo</dt><dd>${escapeHtml(equipment.model)}</dd></div>${equipment.capacity ? `<div><dt>Capacidad</dt><dd>${escapeHtml(equipment.capacity)}</dd></div>` : ''}${equipment.serialNumber ? `<div><dt>N.º de serie</dt><dd>${escapeHtml(equipment.serialNumber)}</dd></div>` : ''}${equipment.notes ? `<div><dt>Notas</dt><dd>${escapeHtml(equipment.notes)}</dd></div>` : ''}</dl></article>`).join('')
   const { label, modifier } = workOrderStatusPresentation[order.status]
   const legacy = order.lifecycleVersion === 'LEGACY'
   const legacyStarted = legacy && [WorkOrderStatus.IN_PROGRESS, WorkOrderStatus.COMPLETED].includes(order.legacyStatus!)
@@ -36,7 +38,7 @@ export function generateWorkOrderDetailHtml(order: WorkOrder | undefined): strin
       : 'Recepción → diagnóstico → decisión del cliente. Si aprueba: trabajo y finalización, con espera de repuestos cuando corresponda. Si rechaza: cierre sin reparación.'
   return `${back}
     <header class="app-shell__page-header"><div><h1 id="work-order-detail-title" tabindex="-1">Orden de trabajo #${escapeHtml(order.id)}</h1>
-      <p>${escapeHtml(order.heaterBrand)} ${escapeHtml(order.heaterModel)}</p></div>
+      <p>${escapeHtml(workOrderEquipmentSummary(order))}</p></div>
       <span class="work-order-card__status work-order-card__status--${modifier}">${label}</span></header>
     <section class="work-orders-surface" aria-labelledby="lifecycle-title"><h2 id="lifecycle-title">Flujo de la orden de trabajo</h2>
       <p>${flow}</p><ol class="work-order-lifecycle"><li data-stage="${order.status}" aria-current="step"><strong>${label}</strong><span>Estado actual</span></li></ol>
@@ -44,6 +46,7 @@ export function generateWorkOrderDetailHtml(order: WorkOrder | undefined): strin
       ${legacy ? `<p class="legacy-lifecycle">Lifecycle anterior (LEGACY). Estado al migrar: ${workOrderStatusPresentation[order.legacyStatus!].label}.
         ${legacyStarted ? 'No hay aprobación del cliente registrada. Se conserva el trabajo histórico; esto no representa una aprobación implícita.' : 'Las acciones posteriores siguen las reglas del nuevo flujo.'}</p>` : ''}
     </section>
+    <section class="work-orders-surface" aria-labelledby="work-order-equipment-title"><h2 id="work-order-equipment-title">Equipos (${equipments.length})</h2><div class="work-order-detail__equipments">${equipmentsHtml}</div></section>
     <section class="work-orders-surface" aria-labelledby="work-order-information-title"><h2 id="work-order-information-title">Información de la orden de trabajo</h2>
       <dl class="work-order-detail__information">
         <div><dt>Cliente</dt><dd>${escapeHtml(order.customerName)}</dd></div>

@@ -476,7 +476,7 @@ describe('authenticated application shell', () => {
   it('focuses the first invalid creation field and advances to the next invalid field', async () => {
     await startup('#work-orders')
     await route('#work-orders/new', 'work-order-new')
-    const submit = document.querySelector<HTMLButtonElement>('#work-order-form button')!
+    const submit = document.querySelector<HTMLButtonElement>('#work-order-form button[type="submit"]')!
     submit.click()
     expect(document.activeElement?.id).toBe('customer-name')
     expect(document.activeElement?.getAttribute('aria-invalid')).toBe('true')
@@ -512,7 +512,7 @@ describe('I5 intention-driven repairs', () => {
     panel('work-orders').querySelector<HTMLAnchorElement>('a[href="#work-orders/new"]')!.click()
     await vi.waitFor(() => expect(document.activeElement?.id).toBe('work-order-new-title'))
     expect(panel('work-order-new').querySelector('form')).not.toBeNull()
-    panel('work-order-new').querySelector<HTMLAnchorElement>('.work-orders-secondary-action')!.click()
+    panel('work-order-new').querySelector<HTMLAnchorElement>('a.work-orders-secondary-action[href="#work-orders"]')!.click()
     await vi.waitFor(() => expect(document.activeElement?.id).toBe('work-orders-title'))
     panel('work-orders').querySelector<HTMLAnchorElement>('a[href="#work-orders/search"]')!.click()
     await vi.waitFor(() => expect(document.activeElement?.id).toBe('work-order-search-title'))
@@ -609,7 +609,10 @@ describe('I5 intention-driven repairs', () => {
     await vi.waitFor(() => expect(document.activeElement?.id).toBe('work-order-detail-title'))
     const requests = fetchMock.mock.calls.filter(([url, init]) => url === '/api/work-orders' && init.method === 'POST')
     expect(requests).toHaveLength(1)
-    expect(JSON.parse(requests[0]![1].body as string)).toEqual(payload)
+    expect(JSON.parse(requests[0]![1].body as string)).toEqual({
+      ...payload,
+      equipments: [{ brand: 'Bosch', model: 'Therm', capacity: null, serialNumber: null, notes: null, position: 1 }],
+    })
     expect(new Headers(requests[0]![1].headers).get('X-CSRF-TOKEN')).toBe('test-token')
     expect(collectionRequests()).toHaveLength(0)
     expect(panel('work-order-detail').textContent).toContain('Cliente real')
@@ -667,7 +670,7 @@ describe('I6 target contract', () => {
     await vi.waitFor(() => expect(panel('work-order-detail').textContent).toContain('Mantención'))
     const requests = fetchMock.mock.calls.filter(([url, init]) => url === '/api/work-orders' && init.method === 'POST')
     expect(requests).toHaveLength(1)
-    expect(JSON.parse(requests[0]![1].body as string)).toEqual({ customerName: 'Juan Pérez', customerContact: '+56912345678', heaterBrand: 'Junkers', heaterModel: 'WR11', serviceType: 'MAINTENANCE', reportedIssue })
+    expect(JSON.parse(requests[0]![1].body as string)).toEqual({ customerName: 'Juan Pérez', customerContact: '+56912345678', heaterBrand: 'Junkers', heaterModel: 'WR11', equipments: [{ brand: 'Junkers', model: 'WR11', capacity: null, serialNumber: null, notes: null, position: 1 }], serviceType: 'MAINTENANCE', reportedIssue })
     expect(new Headers(requests[0]![1].headers).get('X-CSRF-TOKEN')).toBe('test-token')
     expect(panel('work-order-detail').textContent).toContain('Observaciones')
     expect(panel('work-order-detail').textContent).toContain(reportedIssue || '—')

@@ -14,11 +14,11 @@ it('submits creation once while pending and preserves input for retry after fail
     document.querySelector<HTMLInputElement>(`[name="${name}"]`)!.value = name === 'customerContact' ? value.slice(4) : value
   }
   const form = document.querySelector<HTMLFormElement>('form')!
-  const button = form.querySelector<HTMLButtonElement>('button')!
+  const button = form.querySelector<HTMLButtonElement>('button[type="submit"]')!
   const submit = () => form.dispatchEvent(new Event('submit', { cancelable: true }))
   submit(); submit()
   expect(create).toHaveBeenCalledTimes(1)
-  expect(create).toHaveBeenCalledWith(payload)
+  expect(create).toHaveBeenCalledWith({ ...payload, equipments: [{ brand: 'Bosch', model: 'Therm', capacity: null, serialNumber: null, notes: null, position: 1 }] })
   expect(button.disabled).toBe(true)
   expect(form.getAttribute('aria-busy')).toBe('true')
   rejectRequest(new Error('No se pudo completar la solicitud.'))
