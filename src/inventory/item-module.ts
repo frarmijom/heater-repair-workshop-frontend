@@ -49,7 +49,7 @@ export function createInventoryItemModule(root: HTMLElement) {
   }
 
   function managementHtml() {
-    if (!managing) return ''
+    if (!managing || operating || bomEditing || formOpen) return ''
 
     const item = items.find(current => current.id === managing?.id) ?? managing
 
