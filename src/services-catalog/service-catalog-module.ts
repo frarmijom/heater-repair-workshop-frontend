@@ -1,9 +1,15 @@
 import {
   createService,
   editService,
+  getServiceComposition,
   listServices,
   type ServiceCatalogItem,
+  type ServiceComponent,
 } from './service-catalog-service.ts'
+import {
+  listItems,
+  type InventoryItem,
+} from '../inventory/item-service.ts'
 
 const escapeHtml = (value: string): string =>
   value
@@ -36,6 +42,11 @@ export function createServiceCatalogModule(root: HTMLElement): ServiceCatalogMod
   let editing: ServiceCatalogItem | undefined
   let managing: ServiceCatalogItem | undefined
   let confirming: ServiceCatalogItem | undefined
+  let compositionService: ServiceCatalogItem | undefined
+  let compositionComponents: ServiceComponent[] = []
+  let inventoryItems: InventoryItem[] = []
+  let compositionLoading = false
+  let compositionError = ''
   let query = ''
 
   const filtered = (): ServiceCatalogItem[] => {
@@ -105,7 +116,7 @@ export function createServiceCatalogModule(root: HTMLElement): ServiceCatalogMod
   }
 
   const managementHtml = (): string => {
-    if (!managing || formOpen) return ''
+    if (!managing || formOpen || compositionService) return ''
 
     const service = services.find(current => current.id === managing?.id) ?? managing
 
@@ -145,6 +156,11 @@ export function createServiceCatalogModule(root: HTMLElement): ServiceCatalogMod
             ${saving ? 'disabled' : ''}>
             Editar servicio
           </button>
+          <button type="button"
+            data-service-composition="${escapeHtml(service.id)}"
+            ${saving ? 'disabled' : ''}>
+            Ver composición
+          </button>
         </div>
       </div>
 
@@ -164,6 +180,69 @@ export function createServiceCatalogModule(root: HTMLElement): ServiceCatalogMod
           ${service.active ? 'Desactivar servicio' : 'Reactivar servicio'}
         </button>
       </div>
+    </section>`
+  }
+
+  const compositionHtml = (): string => {
+    if (!compositionService) return ''
+
+    const rows = compositionComponents.map(component => {
+      const item = inventoryItems.find(current =>
+        current.id === component.inventoryItemId)
+
+      return `<tr>
+        <th scope="row">
+          ${item
+            ? `${escapeHtml(item.sku)} · ${escapeHtml(item.name)}`
+            : escapeHtml(component.inventoryItemId)}
+        </th>
+        <td>
+          ${escapeHtml(String(component.quantity))}
+          ${item ? escapeHtml(item.unit.symbol) : ''}
+        </td>
+      </tr>`
+    }).join('')
+
+    return `<section class="work-orders-surface inventory-item-management"
+        aria-labelledby="service-composition-heading">
+      <div class="catalog-heading">
+        <div>
+          <p class="inventory-management-kicker">Composición del servicio</p>
+          <h2 id="service-composition-heading">
+            ${escapeHtml(compositionService.name)}
+          </h2>
+          <p>${escapeHtml(compositionService.code)}</p>
+        </div>
+        <button id="service-composition-close" type="button">Cerrar</button>
+      </div>
+
+      <p class="inventory-operation-note">
+        Repuestos e insumos asociados a este servicio.
+      </p>
+
+      ${compositionLoading
+        ? '<p role="status">Cargando composición…</p>'
+        : compositionError
+          ? `<p role="alert">${escapeHtml(compositionError)}</p>`
+          : rows
+            ? `<div class="inventory-items-table-wrap">
+                <table class="inventory-items-table">
+                  <caption class="dashboard-sr-only">
+                    Composición del servicio
+                  </caption>
+                  <thead>
+                    <tr>
+                      <th scope="col">Artículo</th>
+                      <th scope="col">Cantidad</th>
+                    </tr>
+                  </thead>
+                  <tbody>${rows}</tbody>
+                </table>
+              </div>`
+            : `<div class="inventory-empty">
+                <h3>Sin componentes</h3>
+                <p>Este servicio todavía no tiene repuestos o insumos asociados.</p>
+              </div>`}
     </section>`
   }
 
@@ -329,6 +408,10 @@ export function createServiceCatalogModule(root: HTMLElement): ServiceCatalogMod
         ${confirmationHtml()}
       </div>
 
+      <div id="service-composition-region">
+        ${compositionHtml()}
+      </div>
+
       <div id="service-form-region">
         ${formHtml()}
       </div>
@@ -428,6 +511,46 @@ export function createServiceCatalogModule(root: HTMLElement): ServiceCatalogMod
           : 'No fue posible crear el servicio.'
 
       root.querySelector('#service-form')?.setAttribute('aria-busy', 'false')
+    }
+  }
+
+  const openComposition = async (
+    service: ServiceCatalogItem,
+  ): Promise<void> => {
+    compositionService = service
+    compositionComponents = []
+    inventoryItems = []
+    compositionError = ''
+    compositionLoading = true
+    managing = undefined
+    editing = undefined
+    confirming = undefined
+    formOpen = false
+    render()
+
+    try {
+      const [components, items] = await Promise.all([
+        getServiceComposition(service.id),
+        listItems(),
+      ])
+
+      if (compositionService?.id !== service.id) return
+
+      compositionComponents = components.map(component => ({
+        ...component,
+        quantity: String(component.quantity),
+      }))
+      inventoryItems = items
+      compositionLoading = false
+      render()
+    } catch (cause) {
+      if (compositionService?.id !== service.id) return
+
+      compositionLoading = false
+      compositionError = cause instanceof Error
+        ? cause.message
+        : 'No fue posible cargar la composición del servicio.'
+      render()
     }
   }
 
@@ -531,6 +654,27 @@ export function createServiceCatalogModule(root: HTMLElement): ServiceCatalogMod
         formOpen = Boolean(editing)
         render()
         root.querySelector<HTMLInputElement>('#service-code')?.focus()
+      })
+
+    root.querySelector<HTMLButtonElement>('[data-service-composition]')
+      ?.addEventListener('click', button => {
+        const id = (button.currentTarget as HTMLButtonElement)
+          .dataset.serviceComposition
+        const service = services.find(current => current.id === id)
+        if (service) void openComposition(service)
+      })
+
+    root.querySelector<HTMLButtonElement>('#service-composition-close')
+      ?.addEventListener('click', () => {
+        const service = compositionService
+        compositionService = undefined
+        compositionComponents = []
+        inventoryItems = []
+        compositionError = ''
+        compositionLoading = false
+        managing = service
+        render()
+        root.querySelector<HTMLElement>('#service-management-heading')?.focus()
       })
 
     root.querySelector<HTMLButtonElement>('[data-service-toggle]')

@@ -26,11 +26,6 @@ export interface ServiceComponent {
   quantity: string | number
 }
 
-export interface ServiceComposition {
-  serviceId: string
-  components: ServiceComponent[]
-}
-
 export const listServices = (): Promise<ServiceCatalogItem[]> =>
   apiRequest('/services')
 
@@ -58,13 +53,13 @@ export const editService = (
 
 export const getServiceComposition = (
   id: string,
-): Promise<ServiceComposition> =>
+): Promise<ServiceComponent[]> =>
   apiRequest(`/services/${encodeURIComponent(id)}/composition`)
 
 export const replaceServiceComposition = (
   id: string,
   components: ServiceComponent[],
-): Promise<ServiceComposition> =>
+): Promise<ServiceComponent[]> =>
   apiRequest(`/services/${encodeURIComponent(id)}/composition`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
