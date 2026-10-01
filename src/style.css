@@ -1532,3 +1532,40 @@ body::before {
     gap: .75rem;
   }
 }
+
+/* HITO 07 / I4 - Service catalog */
+.service-catalog-filters {
+  display: grid;
+  grid-template-columns: minmax(16rem, 32rem);
+  gap: .85rem;
+  margin-bottom: 1rem;
+}
+
+.service-catalog-filters .form-field,
+.service-catalog-filters input {
+  width: 100%;
+}
+
+.service-catalog-filters input {
+  min-height: 44px;
+}
+
+.service-catalog-table th:nth-child(1) { width: 15%; }
+.service-catalog-table th:nth-child(2) { width: 35%; }
+.service-catalog-table th:nth-child(3) { width: 18%; }
+.service-catalog-table th:nth-child(4) { width: 14%; }
+.service-catalog-table th:nth-child(5) { width: 18%; }
+
+.service-catalog-description {
+  display: block;
+  margin-top: .25rem;
+  color: var(--ui-text-secondary);
+  font-size: .8rem;
+  font-weight: 400;
+}
+
+@media (max-width: 720px) {
+  .service-catalog-filters {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
