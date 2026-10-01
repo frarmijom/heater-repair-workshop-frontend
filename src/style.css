@@ -1241,13 +1241,16 @@ body::before {
 .inventory-items-table { width: 100%; min-width: 880px; table-layout: fixed; border-collapse: collapse; text-align: left; }
 .inventory-items-table th, .inventory-items-table td { padding: .7rem .55rem; border-bottom: 1px solid var(--ui-border); overflow-wrap: anywhere; vertical-align: top; }
 .inventory-items-table thead { background: var(--ui-background); }
-.inventory-items-table th:nth-child(1) { width: 9%; }
-.inventory-items-table th:nth-child(2) { width: 16%; }
-.inventory-items-table th:nth-child(3), .inventory-items-table th:nth-child(4) { width: 12%; }
-.inventory-items-table th:nth-child(5), .inventory-items-table th:nth-child(6) { width: 10%; }
-.inventory-items-table th:nth-child(7) { width: 12%; }
-.inventory-items-table th:nth-child(8) { width: 8%; }
-.inventory-items-table th:nth-child(9) { width: 15%; }
+.inventory-items-table th:nth-child(1) { width: 8%; }
+.inventory-items-table th:nth-child(2) { width: 14%; }
+.inventory-items-table th:nth-child(3) { width: 8%; }
+.inventory-items-table th:nth-child(4) { width: 10%; }
+.inventory-items-table th:nth-child(5) { width: 8%; }
+.inventory-items-table th:nth-child(6) { width: 9%; }
+.inventory-items-table th:nth-child(7) { width: 9%; }
+.inventory-items-table th:nth-child(8) { width: 10%; }
+.inventory-items-table th:nth-child(9) { width: 8%; }
+.inventory-items-table th:nth-child(10) { width: 16%; }
 .inventory-item-filters { display: grid; grid-template-columns: minmax(12rem, 2fr) repeat(2, minmax(9rem, 1fr)) auto; align-items: end; gap: .85rem; margin-bottom: 1rem; }
 .inventory-item-filters .form-field { min-width: 0; }
 .inventory-item-filters :is(input, select) { width: 100%; min-height: 44px; }
