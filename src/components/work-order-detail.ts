@@ -10,7 +10,17 @@ export function generateWorkOrderDetailHtml(order: WorkOrder | undefined): strin
   if (!order) return `${back}<h1 id="work-order-detail-title" tabindex="-1">Orden de trabajo no encontrada</h1><p>No se encontró esta orden de trabajo.</p>`
   const service = serviceTypePresentation[order.serviceType]
   const equipments = workOrderEquipments(order)
-  const equipmentsHtml = equipments.map(equipment => `<article class="work-order-detail__equipment"><h3>Calefont ${equipment.position}</h3><dl><div><dt>Marca</dt><dd>${escapeHtml(equipment.brand)}</dd></div><div><dt>Modelo</dt><dd>${escapeHtml(equipment.model)}</dd></div>${equipment.capacity ? `<div><dt>Capacidad</dt><dd>${escapeHtml(equipment.capacity)}</dd></div>` : ''}${equipment.serialNumber ? `<div><dt>N.º de serie</dt><dd>${escapeHtml(equipment.serialNumber)}</dd></div>` : ''}${equipment.notes ? `<div><dt>Notas</dt><dd>${escapeHtml(equipment.notes)}</dd></div>` : ''}</dl></article>`).join('')
+  const equipmentsHtml = equipments.map(equipment => {
+    const persisted = Boolean(equipment.id)
+    const equipmentAttribute = persisted
+      ? ` data-work-order-equipment="${escapeHtml(equipment.id)}"`
+      : ''
+    const servicesHtml = persisted
+      ? `<section class="work-order-equipment-services" data-equipment-services="${escapeHtml(equipment.id)}" aria-label="Servicios planificados del calefont ${equipment.position}"><div class="work-order-equipment-services__heading"><h4>Servicios planificados</h4><button type="button" data-equipment-services-edit="${escapeHtml(equipment.id)}" disabled>Administrar servicios</button></div><p data-equipment-services-status role="status">Cargando servicios…</p><div data-equipment-services-content></div></section>`
+      : ''
+
+    return `<article class="work-order-detail__equipment"${equipmentAttribute}><h3>Calefont ${equipment.position}</h3><dl><div><dt>Marca</dt><dd>${escapeHtml(equipment.brand)}</dd></div><div><dt>Modelo</dt><dd>${escapeHtml(equipment.model)}</dd></div>${equipment.capacity ? `<div><dt>Capacidad</dt><dd>${escapeHtml(equipment.capacity)}</dd></div>` : ''}${equipment.serialNumber ? `<div><dt>N.º de serie</dt><dd>${escapeHtml(equipment.serialNumber)}</dd></div>` : ''}${equipment.notes ? `<div><dt>Notas</dt><dd>${escapeHtml(equipment.notes)}</dd></div>` : ''}</dl>${servicesHtml}</article>`
+  }).join('')
   const { label, modifier } = workOrderStatusPresentation[order.status]
   const legacy = order.lifecycleVersion === 'LEGACY'
   const legacyStarted = legacy && [WorkOrderStatus.IN_PROGRESS, WorkOrderStatus.COMPLETED].includes(order.legacyStatus!)

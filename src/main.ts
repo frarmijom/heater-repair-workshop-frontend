@@ -1,6 +1,7 @@
 import { createCatalogModule } from './inventory/catalog-module.ts'
 import { createInventoryItemModule } from './inventory/item-module.ts'
 import { createServiceCatalogModule } from './services-catalog/service-catalog-module.ts'
+import { listServices, type ServiceCatalogItem } from './services-catalog/service-catalog-service.ts'
 import { workOrderActions, type WorkOrderAction } from './components/work-order-actions.ts'
 import './style.css'
 import { generatePageHeaderHtml } from './components/page-header.ts'
@@ -26,6 +27,8 @@ import {
   performWorkOrderAction,
   createWorkOrder,
   loadWorkOrders,
+  loadWorkOrderEquipmentServices,
+  replaceWorkOrderEquipmentServices,
 } from './services/work-order-service.ts'
 
 let workOrders: WorkOrder[] = []
@@ -437,6 +440,107 @@ window.addEventListener('hashchange', () => {
   }
 })
 
+function escapeDetailText(value: string): string {
+  const node = document.createElement('span')
+  node.textContent = value
+  return node.innerHTML
+}
+
+async function setupEquipmentServiceAssignments(
+  order: WorkOrder,
+  container: HTMLElement,
+  generation: number,
+): Promise<void> {
+  if (!order.equipments?.length) return
+  const panels = [...container.querySelectorAll<HTMLElement>('[data-equipment-services]')]
+  if (panels.length === 0) return
+
+  let catalog: ServiceCatalogItem[]
+  try {
+    catalog = await listServices()
+  } catch (error: unknown) {
+    if (generation !== viewGeneration || !container.isConnected) return
+    panels.forEach(panel => {
+      const status = panel.querySelector<HTMLElement>('[data-equipment-services-status]')
+      if (status) status.textContent = getErrorMessage(error)
+    })
+    return
+  }
+  if (generation !== viewGeneration || !container.isConnected || selectedWorkOrderId() !== order.id) return
+
+  const byId = new Map(catalog.map(service => [service.id, service]))
+  const renderPanel = (panel: HTMLElement, assignedIds: string[], editing = false): void => {
+    const equipmentId = panel.dataset.equipmentServices!
+    const status = panel.querySelector<HTMLElement>('[data-equipment-services-status]')!
+    const content = panel.querySelector<HTMLElement>('[data-equipment-services-content]')!
+    const edit = panel.querySelector<HTMLButtonElement>('[data-equipment-services-edit]')!
+    edit.disabled = false
+    edit.textContent = editing ? 'Cancelar' : 'Administrar servicios'
+    status.textContent = assignedIds.length === 0
+      ? 'Sin servicios planificados.'
+      : `${assignedIds.length} servicio${assignedIds.length === 1 ? '' : 's'} planificado${assignedIds.length === 1 ? '' : 's'}.`
+
+    if (!editing) {
+      content.innerHTML = assignedIds.length === 0
+        ? ''
+        : `<ul class="work-order-equipment-services__list">${assignedIds.map(id => {
+            const service = byId.get(id)
+            return `<li>${service ? `${escapeDetailText(service.code)} · ${escapeDetailText(service.name)}` : 'Servicio registrado'}</li>`
+          }).join('')}</ul>`
+      edit.onclick = () => renderPanel(panel, assignedIds, true)
+      return
+    }
+
+    const candidates = catalog.filter(service => service.active || assignedIds.includes(service.id))
+    content.innerHTML = `<form class="work-order-equipment-services__form" data-equipment-services-form>
+      <fieldset><legend>Selecciona los servicios para este equipo</legend>
+        ${candidates.length === 0
+          ? '<p>No hay servicios activos disponibles.</p>'
+          : candidates.map(service => `<label><input type="checkbox" name="serviceId" value="${escapeDetailText(service.id)}" ${assignedIds.includes(service.id) ? 'checked' : ''} ${!service.active && assignedIds.includes(service.id) ? 'disabled' : ''}> <span>${escapeDetailText(service.code)} · ${escapeDetailText(service.name)}${service.active ? '' : ' (inactivo)'}</span></label>`).join('')}
+      </fieldset>
+      <div class="order-form__actions"><button type="submit">Guardar servicios</button></div>
+      <p data-equipment-services-error role="alert"></p>
+    </form>`
+    edit.onclick = () => renderPanel(panel, assignedIds, false)
+    const form = content.querySelector<HTMLFormElement>('[data-equipment-services-form]')!
+    form.addEventListener('submit', async event => {
+      event.preventDefault()
+      const submit = form.querySelector<HTMLButtonElement>('button[type="submit"]')!
+      const error = form.querySelector<HTMLElement>('[data-equipment-services-error]')!
+      const serviceIds = [...form.querySelectorAll<HTMLInputElement>('input[name="serviceId"]:checked')].map(input => input.value)
+      submit.disabled = true
+      edit.disabled = true
+      status.textContent = 'Guardando servicios…'
+      error.textContent = ''
+      try {
+        const saved = await replaceWorkOrderEquipmentServices(order.id, equipmentId, serviceIds)
+        if (generation !== viewGeneration || !container.isConnected || selectedWorkOrderId() !== order.id) return
+        renderPanel(panel, saved.map(assignment => assignment.serviceId), false)
+        status.textContent = 'Servicios guardados.'
+      } catch (requestError: unknown) {
+        if (generation !== viewGeneration || !container.isConnected) return
+        error.textContent = getErrorMessage(requestError)
+        status.textContent = 'No se pudieron guardar los servicios.'
+        submit.disabled = false
+        edit.disabled = false
+      }
+    })
+  }
+
+  await Promise.all(panels.map(async panel => {
+    const equipmentId = panel.dataset.equipmentServices!
+    try {
+      const assignments = await loadWorkOrderEquipmentServices(order.id, equipmentId)
+      if (generation !== viewGeneration || !container.isConnected || selectedWorkOrderId() !== order.id) return
+      renderPanel(panel, assignments.map(assignment => assignment.serviceId))
+    } catch (error: unknown) {
+      if (generation !== viewGeneration || !container.isConnected) return
+      const status = panel.querySelector<HTMLElement>('[data-equipment-services-status]')
+      if (status) status.textContent = getErrorMessage(error)
+    }
+  }))
+}
+
 function updateWorkOrderDetail(): void {
   const container = appContainer.querySelector<HTMLElement>('[data-destination="work-order-detail"]')
   const id = selectedWorkOrderId()
@@ -452,8 +556,9 @@ function updateWorkOrderDetail(): void {
   const buttons = [...container.querySelectorAll<HTMLButtonElement>('button[data-work-order-action]')]
   const button = buttons[0]
   const errorElement = container.querySelector<HTMLElement>('#detail-action-error')
-  if (!button || !errorElement) return
   const generation = viewGeneration
+  void setupEquipmentServiceAssignments(order, container, generation)
+  if (!button || !errorElement) return
   const actions = container.querySelector<HTMLElement>('#detail-actions')!
   const opener = container.querySelector<HTMLButtonElement>('#detail-complete')
   const confirmation = container.querySelector<HTMLElement>('#complete-confirmation')

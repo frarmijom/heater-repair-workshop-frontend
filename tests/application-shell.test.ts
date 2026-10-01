@@ -124,7 +124,7 @@ describe('authenticated application shell', () => {
     await startup()
     const sidebar = document.querySelector('.app-sidebar')!
     expect(sidebar.querySelector('.app-shell__brand')?.textContent).toBe('Heater RepairWorkshop')
-    expect([...sidebar.querySelectorAll('nav a')].map(a => a.getAttribute('href'))).toEqual(['#dashboard', '#work-orders', '#inventory/items'])
+    expect([...sidebar.querySelectorAll('nav a')].map(a => a.getAttribute('href'))).toEqual(['#dashboard', '#work-orders', '#inventory/items', '#services'])
     for (const [id, labels] of Object.entries({
       'sidebar-operation': ['Órdenes de trabajo', 'Clientes'],
       'sidebar-inventory': ['Inventario'],
@@ -304,7 +304,7 @@ describe('authenticated application shell', () => {
     expect(skip.tabIndex).toBe(0)
     expect(skip.hasAttribute('href')).toBe(false)
     expect(Array.from(document.querySelectorAll<HTMLAnchorElement>('.app-shell__nav a'), link => link.hash))
-      .toEqual(['#dashboard', '#work-orders', '#inventory/items'])
+      .toEqual(['#dashboard', '#work-orders', '#inventory/items', '#services'])
     const historyLength = history.length
     skip.focus()
     expect(document.activeElement).toBe(skip)

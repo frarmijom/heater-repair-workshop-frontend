@@ -26,3 +26,31 @@ export async function performWorkOrderAction(
     ...(payload ? { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) } : {}),
   })
 }
+
+export interface WorkOrderEquipmentServiceAssignment {
+  serviceId: string
+}
+
+export async function loadWorkOrderEquipmentServices(
+  orderId: string,
+  equipmentId: string,
+): Promise<WorkOrderEquipmentServiceAssignment[]> {
+  return request<WorkOrderEquipmentServiceAssignment[]>(
+    `/work-orders/${encodeURIComponent(orderId)}/equipments/${encodeURIComponent(equipmentId)}/services`,
+  )
+}
+
+export async function replaceWorkOrderEquipmentServices(
+  orderId: string,
+  equipmentId: string,
+  serviceIds: string[],
+): Promise<WorkOrderEquipmentServiceAssignment[]> {
+  return request<WorkOrderEquipmentServiceAssignment[]>(
+    `/work-orders/${encodeURIComponent(orderId)}/equipments/${encodeURIComponent(equipmentId)}/services`,
+    {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ serviceIds }),
+    },
+  )
+}
