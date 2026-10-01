@@ -26,6 +26,7 @@ export function generateApplicationShellHtml(content: string): string {
           </section>
           <section aria-labelledby="sidebar-management">
             <h2 id="sidebar-management">GESTIÓN</h2>
+            <a href="#services"><svg class="sidebar-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true" focusable="false"><path d="M4 5h16v14H4zM8 9h8M8 13h5"/></svg><span class="sidebar-label">Servicios</span></a>
             <button type="button" disabled><svg class="sidebar-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true" focusable="false"><path d="M5 3h14v18H5zM8 16v-4m4 4V8m4 8v-6"/></svg><span class="sidebar-label">Reportes</span> <small>Próximamente</small></button>
           </section>
           <button class="app-sidebar__settings" type="button" disabled><svg class="sidebar-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true" focusable="false"><path d="M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8ZM12 2v3m0 14v3M2 12h3m14 0h3M5 5l2 2m10 10 2 2M5 19l2-2M17 7l2-2"/></svg><span class="sidebar-label">Configuración</span> <small>Próximamente</small></button>
@@ -60,6 +61,7 @@ export function selectedWorkOrderId(): string | null {
 
 export function selectedDestination(): string {
   if (['#inventory', '#inventory/items', '#inventory/categories', '#inventory/units'].includes(window.location.hash)) return 'inventory'
+  if (window.location.hash === '#services') return 'services'
   if (window.location.hash === '#work-orders/new') return 'work-order-new'
   if (window.location.hash === '#work-orders/search') return 'work-order-search'
   if (selectedWorkOrderId() !== null) return 'work-order-detail'
@@ -72,7 +74,14 @@ export function updateShellDestination(root: HTMLElement, focusHeading = false):
     window.history.replaceState(null, '', '#dashboard')
   }
   root.querySelectorAll<HTMLAnchorElement>('.app-shell__nav a').forEach(link => {
-    if (link.hash === `#${destination === 'inventory' ? 'inventory/items' : destination === 'dashboard' ? 'dashboard' : 'work-orders'}`) link.setAttribute('aria-current', 'page')
+    const activeHash = destination === 'inventory'
+      ? '#inventory/items'
+      : destination === 'dashboard'
+        ? '#dashboard'
+        : destination.startsWith('work-order')
+          ? '#work-orders'
+          : `#${destination}`
+    if (link.hash === activeHash) link.setAttribute('aria-current', 'page')
     else link.removeAttribute('aria-current')
   })
   root.querySelectorAll<HTMLElement>('[data-destination]').forEach(panel => {

@@ -1,5 +1,6 @@
 import { createCatalogModule } from './inventory/catalog-module.ts'
 import { createInventoryItemModule } from './inventory/item-module.ts'
+import { createServiceCatalogModule } from './services-catalog/service-catalog-module.ts'
 import { workOrderActions, type WorkOrderAction } from './components/work-order-actions.ts'
 import './style.css'
 import { generatePageHeaderHtml } from './components/page-header.ts'
@@ -42,6 +43,7 @@ const pendingWorkOrderActions = new Set<string>()
 let authenticated = false
 let inventoryModule: ReturnType<typeof createCatalogModule> | undefined
 let inventoryItemModule: ReturnType<typeof createInventoryItemModule> | undefined
+let serviceCatalogModule: ReturnType<typeof createServiceCatalogModule> | undefined
 let viewGeneration = 0
 let clockIntervalId: number | undefined
 const sidebarState = { compact: false }
@@ -274,6 +276,45 @@ function renderWorkshop(): void {
   if (!authenticated) return
   renderApplicationContent(`
     <section class="work-orders-module catalog-module" lang="es" data-destination="inventory" aria-labelledby="inventory-title" hidden></section>
+    <section class="work-orders-module catalog-module service-catalog" lang="es" data-destination="services" aria-labelledby="services-title" hidden>
+      ${generatePageHeaderHtml({
+        id: 'services-title',
+        title: 'Servicios',
+        description: 'Catálogo y precios de los servicios ofrecidos por el taller',
+      })}
+      <div class="service-catalog__toolbar">
+        <label>
+          <span class="sr-only">Buscar servicio</span>
+          <input
+            type="search"
+            placeholder="Buscar por código, nombre o descripción"
+            data-service-catalog-search
+          >
+        </label>
+        <button class="service-catalog__new" type="button" disabled>+ Nuevo servicio</button>
+      </div>
+
+      <section class="work-orders-surface" aria-label="Catálogo de servicios">
+        <div class="service-catalog__summary">
+          <span data-service-catalog-status role="status">Cargando servicios…</span>
+        </div>
+
+        <div class="service-catalog__table-wrap">
+          <table class="service-catalog__table">
+            <thead>
+              <tr>
+                <th scope="col">Código</th>
+                <th scope="col">Servicio</th>
+                <th scope="col">Precio</th>
+                <th scope="col">Estado</th>
+                <th scope="col">Acciones</th>
+              </tr>
+            </thead>
+            <tbody data-service-catalog-body></tbody>
+          </table>
+        </div>
+      </section>
+    </section>
     <section data-destination="dashboard" aria-labelledby="dashboard-title">
       ${generatePageHeaderHtml({ id: 'dashboard-title', title: 'Dashboard', description: 'Resumen general del taller de órdenes de trabajo', contextHtml: '<time id="workshop-clock" class="workshop__clock"></time>' })}
       <div id="dashboard-content"></div>
@@ -307,6 +348,7 @@ function renderWorkshop(): void {
   inventoryItemModule?.dispose()
   inventoryModule = createCatalogModule(appContainer.querySelector<HTMLElement>('[data-destination="inventory"]')!)
   inventoryItemModule = createInventoryItemModule(appContainer.querySelector<HTMLElement>('[data-destination="inventory"]')!)
+  serviceCatalogModule = createServiceCatalogModule(appContainer.querySelector<HTMLElement>('[data-destination="services"]')!)
   startClock()
   setupWorkOrderForm(appContainer, addWorkOrder)
   setupRepairSearch()
@@ -315,6 +357,15 @@ function renderWorkshop(): void {
 
 async function loadDestination(focusHeading = false): Promise<void> {
   const destination = selectedDestination()
+  if (destination === 'services') {
+    updateShellDestination(appContainer, focusHeading)
+    await serviceCatalogModule?.show()
+    if (authenticated && selectedDestination() === 'services') {
+      updateShellDestination(appContainer, focusHeading)
+    }
+    return
+  }
+
   if (destination === 'inventory') {
     const hash = window.location.hash
     const loading = hash === '#inventory/categories' || hash === '#inventory/units'
@@ -503,6 +554,7 @@ function showLogin(message = ''): void {
   inventoryModule = undefined
   inventoryItemModule?.dispose()
   inventoryItemModule = undefined
+  serviceCatalogModule = undefined
   disposeSidebar?.()
   disposeSidebar = undefined
   sidebarState.compact = false
