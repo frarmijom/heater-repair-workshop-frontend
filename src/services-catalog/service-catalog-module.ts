@@ -3,6 +3,7 @@ import {
   editService,
   getServiceComposition,
   listServices,
+  replaceServiceComposition,
   type ServiceCatalogItem,
   type ServiceComponent,
 } from './service-catalog-service.ts'
@@ -186,24 +187,50 @@ export function createServiceCatalogModule(root: HTMLElement): ServiceCatalogMod
   const compositionHtml = (): string => {
     if (!compositionService) return ''
 
-    const rows = compositionComponents.map(component => {
-      const item = inventoryItems.find(current =>
-        current.id === component.inventoryItemId)
+    const candidates = inventoryItems.filter(item =>
+      item.active && item.itemType !== 'KIT')
 
-      return `<tr>
-        <th scope="row">
-          ${item
-            ? `${escapeHtml(item.sku)} · ${escapeHtml(item.name)}`
-            : escapeHtml(component.inventoryItemId)}
-        </th>
-        <td>
-          ${escapeHtml(String(component.quantity))}
-          ${item ? escapeHtml(item.unit.symbol) : ''}
-        </td>
-      </tr>`
-    }).join('')
+    const rows = compositionComponents.map((component, index) => `
+      <div class="inventory-bom-row">
+        <div class="form-field">
+          <label for="service-component-${index}">
+            Componente ${index + 1}
+          </label>
+          <select id="service-component-${index}"
+            data-service-component="${index}"
+            required>
+            <option value="">Selecciona un artículo</option>
+            ${candidates.map(item => `
+              <option value="${escapeHtml(item.id)}"
+                ${item.id === component.inventoryItemId ? 'selected' : ''}>
+                ${escapeHtml(item.sku)} · ${escapeHtml(item.name)}
+              </option>
+            `).join('')}
+          </select>
+        </div>
 
-    return `<section class="work-orders-surface inventory-item-management"
+        <div class="form-field">
+          <label for="service-component-quantity-${index}">
+            Cantidad
+          </label>
+          <input id="service-component-quantity-${index}"
+            data-service-component-quantity="${index}"
+            type="number"
+            min="0.001"
+            step="0.001"
+            value="${escapeHtml(String(component.quantity))}"
+            required>
+        </div>
+
+        <button type="button"
+          data-service-component-remove="${index}"
+          aria-label="Quitar componente ${index + 1}">
+          Quitar
+        </button>
+      </div>
+    `).join('')
+
+    return `<section class="work-orders-surface inventory-item-form-surface inventory-bom-surface"
         aria-labelledby="service-composition-heading">
       <div class="catalog-heading">
         <div>
@@ -211,38 +238,44 @@ export function createServiceCatalogModule(root: HTMLElement): ServiceCatalogMod
           <h2 id="service-composition-heading">
             ${escapeHtml(compositionService.name)}
           </h2>
-          <p>${escapeHtml(compositionService.code)}</p>
+          <p>
+            ${escapeHtml(compositionService.code)} ·
+            Define los repuestos e insumos asociados a este servicio.
+          </p>
         </div>
-        <button id="service-composition-close" type="button">Cerrar</button>
-      </div>
 
-      <p class="inventory-operation-note">
-        Repuestos e insumos asociados a este servicio.
-      </p>
+        <button id="service-composition-close"
+          type="button"
+          ${saving ? 'disabled' : ''}>
+          Cerrar
+        </button>
+      </div>
 
       ${compositionLoading
         ? '<p role="status">Cargando composición…</p>'
         : compositionError
           ? `<p role="alert">${escapeHtml(compositionError)}</p>`
-          : rows
-            ? `<div class="inventory-items-table-wrap">
-                <table class="inventory-items-table">
-                  <caption class="dashboard-sr-only">
-                    Composición del servicio
-                  </caption>
-                  <thead>
-                    <tr>
-                      <th scope="col">Artículo</th>
-                      <th scope="col">Cantidad</th>
-                    </tr>
-                  </thead>
-                  <tbody>${rows}</tbody>
-                </table>
-              </div>`
-            : `<div class="inventory-empty">
-                <h3>Sin componentes</h3>
-                <p>Este servicio todavía no tiene repuestos o insumos asociados.</p>
-              </div>`}
+          : `<form id="service-composition-form" novalidate>
+              ${rows || `
+                <p class="inventory-bom-empty">
+                  Este servicio todavía no tiene repuestos o insumos asociados.
+                </p>
+              `}
+
+              <div class="order-form__actions">
+                <button id="service-component-add"
+                  type="button"
+                  ${saving ? 'disabled' : ''}>
+                  Agregar componente
+                </button>
+
+                <button type="submit" ${saving ? 'disabled' : ''}>
+                  ${saving ? 'Guardando…' : 'Guardar composición'}
+                </button>
+              </div>
+
+              <p id="service-composition-error" role="alert"></p>
+            </form>`}
     </section>`
   }
 
@@ -554,6 +587,88 @@ export function createServiceCatalogModule(root: HTMLElement): ServiceCatalogMod
     }
   }
 
+  const submitComposition = async (): Promise<void> => {
+    if (!compositionService || saving) return
+
+    const selects = [
+      ...root.querySelectorAll<HTMLSelectElement>(
+        '[data-service-component]',
+      ),
+    ]
+
+    const components: ServiceComponent[] = selects.map(select => {
+      const index = select.dataset.serviceComponent!
+
+      return {
+        inventoryItemId: select.value,
+        quantity: root.querySelector<HTMLInputElement>(
+          `[data-service-component-quantity="${index}"]`,
+        )!.value,
+      }
+    })
+
+    const duplicate = components.some((component, index) =>
+      component.inventoryItemId
+      && components.findIndex(candidate =>
+        candidate.inventoryItemId === component.inventoryItemId) !== index)
+
+    const invalid = components.some(component => {
+      const quantity = String(component.quantity)
+
+      return !component.inventoryItemId
+        || !/^\d+(\.\d{1,3})?$/.test(quantity)
+        || Number(quantity) <= 0
+    })
+
+    if (duplicate || invalid) {
+      const error =
+        root.querySelector<HTMLElement>('#service-composition-error')
+
+      if (error) {
+        error.textContent = duplicate
+          ? 'Un componente no puede repetirse en el servicio.'
+          : 'Selecciona cada componente e ingresa una cantidad válida mayor que cero.'
+      }
+      return
+    }
+
+    saving = true
+    render()
+
+    try {
+      const saved = await replaceServiceComposition(
+        compositionService.id,
+        components,
+      )
+
+      compositionComponents = saved.map(component => ({
+        ...component,
+        quantity: String(component.quantity),
+      }))
+
+      saving = false
+      render()
+
+      const status = root.querySelector<HTMLElement>('#service-status')
+      if (status) {
+        status.textContent =
+          'Composición del servicio guardada correctamente.'
+      }
+    } catch (cause) {
+      saving = false
+      render()
+
+      const error =
+        root.querySelector<HTMLElement>('#service-composition-error')
+
+      if (error) {
+        error.textContent = cause instanceof Error
+          ? cause.message
+          : 'No fue posible guardar la composición del servicio.'
+      }
+    }
+  }
+
   const toggleService = async (): Promise<void> => {
     if (!confirming || saving) return
 
@@ -662,6 +777,31 @@ export function createServiceCatalogModule(root: HTMLElement): ServiceCatalogMod
           .dataset.serviceComposition
         const service = services.find(current => current.id === id)
         if (service) void openComposition(service)
+      })
+
+    root.querySelector<HTMLButtonElement>('#service-component-add')
+      ?.addEventListener('click', () => {
+        compositionComponents.push({
+          inventoryItemId: '',
+          quantity: '1',
+        })
+        render()
+      })
+
+    root.querySelectorAll<HTMLButtonElement>(
+      '[data-service-component-remove]',
+    ).forEach(button => {
+      button.addEventListener('click', () => {
+        const index = Number(button.dataset.serviceComponentRemove)
+        compositionComponents.splice(index, 1)
+        render()
+      })
+    })
+
+    root.querySelector<HTMLFormElement>('#service-composition-form')
+      ?.addEventListener('submit', event => {
+        event.preventDefault()
+        void submitComposition()
       })
 
     root.querySelector<HTMLButtonElement>('#service-composition-close')
