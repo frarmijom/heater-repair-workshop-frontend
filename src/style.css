@@ -1595,3 +1595,8 @@ body::before {
     grid-template-columns: 1fr;
   }
 }
+
+/* HITO 07 / I4 - Service summary occupies the complete management grid. */
+.service-catalog .inventory-management-summary > .inventory-management-details {
+  grid-column: 1 / -1;
+}
