@@ -1,6 +1,6 @@
 import { escapeHtml } from '../components/work-order-card.ts'
 import { ApiRequestError, SessionExpiredError } from '../services/api.ts'
-import { adjustItemStock, createItem, editItem, getItemBom, listItemCatalog, listItems, listItemMovements, receiveItemStock, replaceItemBom, reverseInventoryMovement, type InventoryCatalogOption, type InventoryItem, type InventoryItemInput, type InventoryKitComponent, type InventoryMovement } from './item-service.ts'
+import { adjustItemStock, assembleInventoryKit, createItem, editItem, getItemBom, listItemCatalog, listItems, listItemMovements, receiveItemStock, replaceItemBom, reverseInventoryMovement, type InventoryCatalogOption, type InventoryItem, type InventoryItemInput, type InventoryKitComponent, type InventoryMovement } from './item-service.ts'
 
 type ItemFilters = { query: string; state: 'all' | 'active' | 'inactive'; category: string; lowStock: boolean }
 
@@ -19,9 +19,10 @@ export function createInventoryItemModule(root: HTMLElement) {
   let managing: InventoryItem | undefined
   let operating: InventoryItem | undefined
   let movementHistory: InventoryMovement[] = []
-  let operationMode: 'receipt' | 'adjustment' | 'history' | undefined
+  let operationMode: 'receipt' | 'adjustment' | 'assembly' | 'history' | undefined
   let receiptRequestId = ''
   let adjustmentRequestId = ''
+  let assemblyRequestId = ''
   let reversing: InventoryMovement | undefined
   let bomEditing: InventoryItem | undefined
   let bomComponents: InventoryKitComponent[] = []
@@ -119,7 +120,10 @@ export function createInventoryItemModule(root: HTMLElement) {
           </button>
 
           ${item.itemType === 'KIT'
-            ? `<button type="button" data-manage-bom="${escapeHtml(item.id)}">
+            ? `<button type="button" data-manage-assembly="${escapeHtml(item.id)}" ${!item.active || saving ? 'disabled' : ''}>
+                Ensamblar kit
+              </button>
+              <button type="button" data-manage-bom="${escapeHtml(item.id)}">
                 Administrar composición
               </button>`
             : ''}
@@ -254,6 +258,8 @@ export function createInventoryItemModule(root: HTMLElement) {
     root.querySelector<HTMLFormElement>('#receipt-form')?.addEventListener('input', () => { receiptRequestId = '' })
     root.querySelector<HTMLFormElement>('#adjustment-form')?.addEventListener('submit', event => { event.preventDefault(); void submitAdjustment() })
     root.querySelector<HTMLFormElement>('#adjustment-form')?.addEventListener('input', () => { adjustmentRequestId = '' })
+    root.querySelector<HTMLFormElement>('#assembly-form')?.addEventListener('submit', event => { event.preventDefault(); void submitAssembly() })
+    root.querySelector<HTMLFormElement>('#assembly-form')?.addEventListener('input', () => { assemblyRequestId = '' })
     root.querySelector<HTMLFormElement>('#reversal-form')?.addEventListener('submit', event => { event.preventDefault(); void submitReversal() })
     root.querySelector<HTMLFormElement>('#reversal-form')?.addEventListener('input', () => { reversalRequestId = '' })
     root.querySelector<HTMLButtonElement>('#reversal-cancel')?.addEventListener('click', () => { reversing = undefined; reversalRequestId = ''; render() })
@@ -297,6 +303,18 @@ export function createInventoryItemModule(root: HTMLElement) {
       reversing = undefined
       render()
       root.querySelector<HTMLInputElement>('#adjustment-quantity')?.focus()
+    })
+
+    root.querySelector<HTMLButtonElement>('[data-manage-assembly]')?.addEventListener('click', button => {
+      const id = (button.currentTarget as HTMLButtonElement).dataset.manageAssembly
+      managing = undefined
+      operating = items.find(item => item.id === id)
+      operationMode = 'assembly'
+      assemblyRequestId = ''
+      movementHistory = []
+      reversing = undefined
+      render()
+      root.querySelector<HTMLInputElement>('#assembly-quantity')?.focus()
     })
 
     root.querySelector<HTMLButtonElement>('[data-manage-history]')?.addEventListener('click', button => {
@@ -378,6 +396,7 @@ export function createInventoryItemModule(root: HTMLElement) {
     if (!operating || !operationMode) return ''
     if (operationMode === 'receipt') return `<section class="work-orders-surface inventory-item-form-surface" aria-labelledby="receipt-heading"><div class="catalog-heading"><div><h2 id="receipt-heading">Registrar entrada · ${escapeHtml(operating.name)}</h2><p>Stock actual: <strong>${escapeHtml(String(operating.stockCurrent))} ${escapeHtml(operating.unit.symbol)}</strong></p></div><button id="operation-close" type="button">Cerrar</button></div><form id="receipt-form" novalidate><div class="inventory-item-form-grid"><div class="form-field"><label for="receipt-quantity">Cantidad *</label><input id="receipt-quantity" type="number" min="0" step="${operating.unit.allowsDecimal ? '0.001' : '1'}" required><small id="receipt-quantity-error"></small></div><div class="form-field"><label for="receipt-cost">Costo unitario *</label><input id="receipt-cost" type="number" min="0" step="0.0001" value="${escapeHtml(String(operating.referenceUnitCost))}" required><small id="receipt-cost-error"></small></div><div class="form-field"><label for="receipt-reason">Motivo *</label><input id="receipt-reason" maxlength="1000" value="Reposición de stock" required><small id="receipt-reason-error"></small></div></div><div class="order-form__actions"><button type="submit" ${saving ? 'disabled' : ''}>${saving ? 'Registrando…' : 'Registrar entrada'}</button></div><p id="receipt-error" role="alert"></p></form></section>`
     if (operationMode === 'adjustment') return `<section class="work-orders-surface inventory-item-form-surface" aria-labelledby="adjustment-heading"><div class="catalog-heading"><div><h2 id="adjustment-heading">Ajustar stock · ${escapeHtml(operating.name)}</h2><p>Stock actual: <strong>${escapeHtml(String(operating.stockCurrent))} ${escapeHtml(operating.unit.symbol)}</strong></p></div><button id="operation-close" type="button">Cerrar</button></div><form id="adjustment-form" novalidate><div class="inventory-item-form-grid"><div class="form-field"><label for="adjustment-direction">Tipo de ajuste *</label><select id="adjustment-direction"><option value="INCREASE">Aumentar stock</option><option value="DECREASE">Disminuir stock</option></select></div><div class="form-field"><label for="adjustment-quantity">Cantidad *</label><input id="adjustment-quantity" type="number" min="0" step="${operating.unit.allowsDecimal ? '0.001' : '1'}" required><small id="adjustment-quantity-error"></small></div><div class="form-field"><label for="adjustment-reason">Motivo *</label><input id="adjustment-reason" maxlength="1000" required><small id="adjustment-reason-error"></small></div></div><p class="inventory-operation-note">El ajuste quedará registrado en el historial. El stock no se edita directamente.</p><div class="order-form__actions"><button type="submit" ${saving ? 'disabled' : ''}>${saving ? 'Aplicando…' : 'Aplicar ajuste'}</button></div><p id="adjustment-error" role="alert"></p></form></section>`
+    if (operationMode === 'assembly') return `<section class="work-orders-surface inventory-item-form-surface" aria-labelledby="assembly-heading"><div class="catalog-heading"><div><h2 id="assembly-heading">Ensamblar kit · ${escapeHtml(operating.name)}</h2><p>${escapeHtml(operating.sku)} · Stock actual: <strong>${escapeHtml(String(operating.stockCurrent))} ${escapeHtml(operating.unit.symbol)}</strong></p></div><button id="operation-close" type="button">Cerrar</button></div><form id="assembly-form" novalidate><div class="inventory-item-form-grid"><div class="form-field"><label for="assembly-quantity">Cantidad a ensamblar *</label><input id="assembly-quantity" type="number" min="0" step="${operating.unit.allowsDecimal ? '0.001' : '1'}" required><small id="assembly-quantity-error"></small></div><div class="form-field"><label for="assembly-reason">Motivo *</label><input id="assembly-reason" maxlength="1000" value="Ensamblaje de kit" required><small id="assembly-reason-error"></small></div></div><p class="inventory-operation-note">Al confirmar se descontarán automáticamente los componentes definidos en la composición y aumentará el stock del kit.</p><div class="order-form__actions"><button type="submit" ${saving ? 'disabled' : ''}>${saving ? 'Ensamblando…' : 'Ensamblar kit'}</button></div><p id="assembly-error" role="alert"></p></form></section>`
     const reversedIds = new Set(movementHistory.map(m => m.reversalOfMovementId).filter(Boolean))
     const rows = movementHistory.map(m => {
       const reversible = (m.type === 'ENTRY' || m.type === 'ADJUSTMENT') && !reversedIds.has(m.id)
@@ -441,6 +460,38 @@ export function createInventoryItemModule(root: HTMLElement) {
     } catch (reasonValue) {
       saving = false
       if (!(reasonValue instanceof SessionExpiredError)) root.querySelector<HTMLElement>('#adjustment-error')!.textContent = errorText(reasonValue)
+    }
+  }
+
+  async function submitAssembly() {
+    if (!operating || saving || operationMode !== 'assembly') return
+    const quantity = root.querySelector<HTMLInputElement>('#assembly-quantity')!.value
+    const reason = root.querySelector<HTMLInputElement>('#assembly-reason')!.value.trim()
+    let invalid = !decimalValid(quantity, 3) || Number(quantity) <= 0
+    if (!operating.unit.allowsDecimal && quantity.includes('.') && /[1-9]/.test(quantity.split('.')[1] ?? '')) invalid = true
+    root.querySelector<HTMLElement>('#assembly-quantity-error')!.textContent = invalid ? 'Ingresa una cantidad válida mayor que cero.' : ''
+    root.querySelector<HTMLElement>('#assembly-reason-error')!.textContent = reason ? '' : 'Ingresa un motivo.'
+    if (invalid || !reason) return
+
+    saving = true
+    assemblyRequestId ||= globalThis.crypto?.randomUUID?.() ?? `assembly-${Date.now()}-${Math.random().toString(36).slice(2)}`
+    const itemId = operating.id
+
+    try {
+      await assembleInventoryKit(itemId, { requestId: assemblyRequestId, quantity, reason })
+      items = await listItems()
+      managing = items.find(item => item.id === itemId)
+      operating = undefined
+      operationMode = undefined
+      assemblyRequestId = ''
+      saving = false
+      message = 'Kit ensamblado correctamente.'
+      render()
+    } catch (reasonValue) {
+      saving = false
+      if (!(reasonValue instanceof SessionExpiredError)) {
+        root.querySelector<HTMLElement>('#assembly-error')!.textContent = errorText(reasonValue)
+      }
     }
   }
 

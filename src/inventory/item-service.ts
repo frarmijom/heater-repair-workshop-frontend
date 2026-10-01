@@ -111,3 +111,22 @@ export const getItemBom = (id: string): Promise<InventoryKitBom> => apiRequest(`
 export const replaceItemBom = (id: string, components: InventoryKitComponent[]): Promise<InventoryKitBom> => apiRequest(`/inventory/items/${encodeURIComponent(id)}/bom`, {
   method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ components }),
 })
+
+export interface InventoryKitAssemblyInput {
+  requestId: string
+  quantity: string
+  reason: string
+}
+
+export interface InventoryKitAssemblyResponse {
+  assemblyId: string
+  kit: InventoryItem
+  movements: InventoryMovement[]
+}
+
+export const assembleInventoryKit = (
+  id: string,
+  input: InventoryKitAssemblyInput,
+): Promise<InventoryKitAssemblyResponse> => apiRequest(`/inventory/items/${encodeURIComponent(id)}/assemblies`, {
+  method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(input),
+})

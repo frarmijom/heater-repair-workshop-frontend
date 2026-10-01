@@ -28,6 +28,7 @@ let patchedPayloads: Record<string, unknown>[]
 beforeEach(() => {
   clearCsrf()
   setSessionExpiredHandler(() => {})
+  Element.prototype.scrollIntoView = vi.fn()
   window.history.replaceState(null, '', '/#inventory/items')
   document.body.innerHTML = '<section id="inventory"></section>'
   root = document.querySelector('#inventory')!
@@ -63,6 +64,15 @@ beforeEach(() => {
     if (/^\/api\/inventory\/items\/[^/]+\/bom$/.test(url) && options.method === 'PUT') {
       const payload = JSON.parse(options.body as string) as { components: Array<{ componentItemId: string; quantity: string }> }
       return json({ kitItemId: 'kit-1', components: payload.components })
+    }
+    if (/^\/api\/inventory\/items\/[^/]+\/assemblies$/.test(url) && options.method === 'POST') {
+      const payload = JSON.parse(options.body as string) as { quantity: string; requestId: string; reason: string }
+      const id = decodeURIComponent(url.split('/').at(-2)!)
+      const existing = items.findIndex(value => value.id === id)
+      const current = items[existing]
+      const updated = item({ ...current, stockCurrent: String(Number(current.stockCurrent) + Number(payload.quantity)), itemType: 'KIT' })
+      items[existing] = updated
+      return json({ assemblyId: 'assembly-1', kit: updated, movements: [] }, 201)
     }
     if (url.startsWith('/api/inventory/items/') && options.method === 'PATCH') {
       const payload = JSON.parse(options.body as string) as Record<string, unknown>
@@ -175,7 +185,8 @@ describe('inventory items', () => {
   it('locks unit after movement and never submits stockCurrent during metadata edit', async () => {
     items = [item()]
     await module.show()
-    click('[data-edit]')
+    click('[data-manage]')
+    click('[data-manage-edit]')
     expect(root.querySelector<HTMLSelectElement>('#item-unit')?.disabled).toBe(true)
     expect(root.textContent).toContain('La unidad no puede modificarse porque el artículo ya posee movimientos.')
     expect(root.querySelector('#item-initial-stock')).toBeNull()
@@ -191,13 +202,14 @@ describe('inventory items', () => {
   it('confirms deactivation, preserves stock, and reactivates without DELETE', async () => {
     items = [item()]
     await module.show()
-    click('[data-toggle]')
+    click('[data-manage]')
+    click('[data-manage-toggle]')
     expect(root.textContent).toContain('El artículo no se elimina')
     click('#item-confirm-toggle')
     await vi.waitFor(() => expect(root.textContent).toContain('Estado del artículo actualizado.'))
     expect(patchedPayloads[0]).toMatchObject({ active: false, expectedVersion: 0 })
     expect(root.querySelector('tbody')?.textContent).toContain('INACTIVO')
-    click('[data-toggle]')
+    click('[data-manage-toggle]')
     click('#item-confirm-toggle')
     await vi.waitFor(() => expect(root.querySelector('tbody')?.textContent).toContain('ACTIVO'))
     expect(patchedPayloads[1]).toMatchObject({ active: true, expectedVersion: 1 })
@@ -217,7 +229,13 @@ describe('inventory items', () => {
     await vi.waitFor(() => expect(root.textContent).toContain('Artículo creado correctamente.'))
     expect(createdPayloads.at(-1)).toMatchObject({ itemType: 'KIT', initialStock: '0' })
     expect(root.querySelector('tbody')?.textContent).toContain('KIT')
-    click('[data-bom]')
+    const kitRow = [...root.querySelectorAll<HTMLTableRowElement>('tbody tr')]
+      .find(row => row.textContent?.includes('KIT-001'))
+    expect(kitRow).toBeTruthy()
+    kitRow!.querySelector<HTMLButtonElement>('[data-manage]')!.click()
+    expect(root.textContent).toContain('Administrar artículo')
+    expect(root.textContent).toContain('Kit mantención')
+    click('[data-manage-bom]')
     await vi.waitFor(() => expect(root.textContent).toContain('Este kit aún no tiene componentes.'))
     expect(root.textContent).toContain('no modifica las existencias')
     click('#bom-add')
@@ -228,6 +246,38 @@ describe('inventory items', () => {
     const put = fetchMock.mock.calls.find(([url, options]) => String(url).endsWith('/bom') && options.method === 'PUT')
     expect(JSON.parse(put?.[1].body as string)).toEqual({ components: [{ componentItemId: 'component-1', quantity: '2' }] })
     expect(fetchMock.mock.calls.some(([url]) => String(url).includes('/receipts') || String(url).includes('/adjustments'))).toBe(false)
+  })
+
+  it('assembles a kit from administration and refreshes its stock', async () => {
+    items = [
+      item({ id: 'kit-assembly', sku: 'KIT-ASM', name: 'Kit mantención', itemType: 'KIT', stockCurrent: '1.000' }),
+      item({ id: 'component-1', sku: 'MEM-001', name: 'Membrana', stockCurrent: '20.000' }),
+    ]
+
+    await module.show()
+    click('[data-manage]')
+    expect(root.textContent).toContain('Ensamblar kit')
+
+    click('[data-manage-assembly]')
+    expect(root.querySelector('#item-management-heading')).toBeNull()
+    expect(root.textContent).toContain('Ensamblar kit · Kit mantención')
+
+    field('assembly-quantity', '2')
+    field('assembly-reason', 'Preparar kits de mantención')
+    root.querySelector('#assembly-form')!.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }))
+
+    await vi.waitFor(() => expect(root.textContent).toContain('Kit ensamblado correctamente.'))
+    expect(root.textContent).toContain('Administrar artículo')
+    expect(root.textContent).toContain('3')
+
+    const post = fetchMock.mock.calls.find(([url, options]) =>
+      String(url).endsWith('/kit-assembly/assemblies') && options.method === 'POST')
+    expect(post).toBeTruthy()
+    expect(JSON.parse(post?.[1].body as string)).toMatchObject({
+      quantity: '2',
+      reason: 'Preparar kits de mantención',
+    })
+    expect(JSON.parse(post?.[1].body as string).requestId).toBeTruthy()
   })
 
   it('shows retryable load errors and ignores responses after disposal', async () => {
