@@ -278,6 +278,7 @@ export function createInventoryItemModule(root: HTMLElement) {
 
     root.querySelector<HTMLButtonElement>('[data-manage-receipt]')?.addEventListener('click', button => {
       const id = (button.currentTarget as HTMLButtonElement).dataset.manageReceipt
+      managing = undefined
       operating = items.find(item => item.id === id)
       operationMode = 'receipt'
       receiptRequestId = ''
@@ -288,6 +289,7 @@ export function createInventoryItemModule(root: HTMLElement) {
 
     root.querySelector<HTMLButtonElement>('[data-manage-adjust]')?.addEventListener('click', button => {
       const id = (button.currentTarget as HTMLButtonElement).dataset.manageAdjust
+      managing = undefined
       operating = items.find(item => item.id === id)
       operationMode = 'adjustment'
       adjustmentRequestId = ''
@@ -300,12 +302,14 @@ export function createInventoryItemModule(root: HTMLElement) {
     root.querySelector<HTMLButtonElement>('[data-manage-history]')?.addEventListener('click', button => {
       const id = (button.currentTarget as HTMLButtonElement).dataset.manageHistory
       const item = items.find(current => current.id === id)
+      managing = undefined
       if (item) void openHistory(item)
     })
 
     root.querySelector<HTMLButtonElement>('[data-manage-bom]')?.addEventListener('click', button => {
       const id = (button.currentTarget as HTMLButtonElement).dataset.manageBom
       const item = items.find(current => current.id === id)
+      managing = undefined
       if (item) void openBom(item)
     })
 
