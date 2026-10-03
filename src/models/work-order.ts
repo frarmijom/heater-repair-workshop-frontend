@@ -5,6 +5,12 @@ export enum WorkOrderStatus {
   WAITING_PARTS = 'WAITING_PARTS', IN_PROGRESS = 'IN_PROGRESS', COMPLETED = 'COMPLETED', NOT_APPROVED = 'NOT_APPROVED',
 }
 
+export type EquipmentType = 'CALEFONT'
+
+export type EquipmentIntakeRoute = 'DIRECT_SERVICE' | 'DIAGNOSIS_REQUIRED'
+
+export type CustomerDecision = 'APPROVED' | 'REJECTED'
+
 export interface WorkOrderEquipment {
   id: string
   brand: string
@@ -13,6 +19,14 @@ export interface WorkOrderEquipment {
   serialNumber: string | null
   notes: string | null
   position: number
+  type?: EquipmentType
+  intakeRoute?: EquipmentIntakeRoute | null
+  status?: WorkOrderStatus | null
+  reportedIssue?: string | null
+  diagnosis?: string | null
+  customerDecision?: CustomerDecision | null
+  receivedAt?: string | null
+  completedAt?: string | null
 }
 
 export interface CreateWorkOrderEquipmentPayload {
@@ -38,7 +52,7 @@ export interface WorkOrder {
   status: WorkOrderStatus
   receivedAt: string
   completedAt: string | null
-  lifecycleVersion?: 'LEGACY' | 'V1'
+  lifecycleVersion?: 'LEGACY' | 'V1' | 'V2'
   legacyStatus?: WorkOrderStatus | null
   customerDecision?: 'APPROVED' | 'REJECTED' | null
 }
@@ -51,6 +65,24 @@ export interface CreateWorkOrderPayload {
   equipments: CreateWorkOrderEquipmentPayload[]
   serviceType: ServiceType
   reportedIssue: string
+}
+
+export interface CreateWorkOrderV2EquipmentPayload {
+  type: EquipmentType
+  brand: string
+  model: string
+  capacity: string | null
+  serialNumber: string | null
+  notes: string | null
+  position: number
+  intakeRoute: EquipmentIntakeRoute
+  reportedIssue: string | null
+}
+
+export interface CreateWorkOrderV2Payload {
+  customerName: string
+  customerContact: string
+  equipments: CreateWorkOrderV2EquipmentPayload[]
 }
 
 export function workOrderEquipments(order: WorkOrder): readonly WorkOrderEquipment[] {
